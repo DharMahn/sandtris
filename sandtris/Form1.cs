@@ -7,13 +7,33 @@ namespace sandtris
             public Color Color;
             public byte ID;
         }
+        List<bool[,]> tetrominoShapes = new List<bool[,]>
+        {
+            new bool[,] { { true, true, true, true } }, // I
+            new bool[,] { { true, true }, { true, true } }, // O
+            new bool[,] { { true, true, false }, { false, true, true } }, // S
+            new bool[,] { { false, true, true }, { true, true, false } }, // Z
+            new bool[,] { { true, false, false }, { true, true, true } }, // L
+            new bool[,] { { false, false, true }, { true, true, true } }, // J
+            new bool[,] { { true, true, true }, { false, true, false } } // T
+        };
+        List<Color> palette = new List<Color>()
+        {
+            Color.Transparent,
+            Color.Blue,
+            Color.Red,
+            Color.Green,
+            Color.Purple,
+            Color.Wheat,
+            Color.DarkGray,
+        };
         Bitmap bmp;
         const int CELL_SIZE = 16;
         Cell[,] map;
         static Random r = new Random();
         public void SetCell(int x, int y, byte id, Color color)
         {
-            if (x<0||y<0||x>=map.GetLength(0)||y>=map.GetLength(1))
+            if (x < 0 || y < 0 || x >= map.GetLength(0) || y >= map.GetLength(1))
             {
                 return;
             }
@@ -49,6 +69,33 @@ namespace sandtris
             if (e.KeyCode == Keys.Escape)
             {
                 Application.Exit();
+            }
+            if (e.KeyCode == Keys.F)
+            {
+                SpawnTetromino(tetrominoShapes[r.Next(tetrominoShapes.Count)]);
+            }
+        }
+
+        void SpawnTetromino(bool[,] shape)
+        {
+            int xOffset = (map.GetLength(0) / CELL_SIZE / 2) - 1;
+            byte randomNum = (byte)r.Next(1,palette.Count);
+
+            for (int y = 0; y < shape.GetLength(1); y++)
+            {
+                for (int x = 0; x < shape.GetLength(0); x++)
+                {
+                    if (shape[x,y])
+                    {
+                        for (int y1 = 0; y1 < CELL_SIZE; y1++)
+                        {
+                            for (int x1 = 0; x1 < CELL_SIZE; x1++)
+                            {
+                                SetCell(((x+xOffset) * CELL_SIZE) + x1, (y * CELL_SIZE) + y1, randomNum, palette[randomNum]);
+                            }
+                        }
+                    }
+                }
             }
         }
         protected override void OnPaint(PaintEventArgs e)
