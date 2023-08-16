@@ -423,7 +423,7 @@ namespace sandtris
 
             while (true)
             {
-                newCorners = CalculateNewCorners(0, TETROMINO_SIZE);
+                newCorners = CalculateNewCorners(0, 1);
                 if (WillCollide(newCorners))
                 {
                     break;
