@@ -12,6 +12,7 @@ namespace sandtris
             public uint TetrominoID;
         }
         static uint currentTetrominoId;
+        static byte currentTetrominoRotIndex;
         static uint lastTetrominoCollisionId;
         List<bool[,]> tetrominoShapes = new List<bool[,]>
         {
@@ -22,6 +23,10 @@ namespace sandtris
             new bool[,] { { true, false, false }, { true, true, true } }, // L
             new bool[,] { { false, false, true }, { true, true, true } }, // J
             new bool[,] { { true, true, true }, { false, true, false } } // T
+        };
+        List<byte> tetrominoRotationIndices = new List<byte>
+        {
+            1,1,1,1,2,1,1
         };
         List<Color> palette = new List<Color>()
         {
@@ -114,7 +119,10 @@ namespace sandtris
         List<Point> currentTetrominoCorners = new();
         void SpawnTetromino()
         {
-            bool[,] shape = tetrominoShapes[r.Next(tetrominoShapes.Count)];
+            int index = r.Next(tetrominoShapes.Count);
+            bool[,] shape = tetrominoShapes[index];
+            currentTetrominoRotIndex = tetrominoRotationIndices[index];
+            Debug.WriteLine("Current Tetromino #" + index);
             currentTetrominoId++;
             currentTetrominoCorners.Clear();
             int xOffset = (map.GetLength(0) / TETROMINO_SIZE / 2) - 1;
@@ -151,7 +159,7 @@ namespace sandtris
         }
         private void Update(object sender, EventArgs e)
         {
-            if (currentTetrominoCorners.Count==0)
+            if (currentTetrominoCorners.Count == 0)
             {
                 SpawnTetromino();
             }
@@ -345,7 +353,7 @@ namespace sandtris
                 return;
             }
 
-            Point center = currentTetrominoCorners[3];
+            Point center = currentTetrominoCorners[currentTetrominoRotIndex];
             Cell infoAboutCurrentCell = map[center.X, center.Y];
 
             // Step 1: Rotate the tetromino
@@ -493,7 +501,7 @@ namespace sandtris
         }
         List<Point> ComputeRotatedCorners()
         {
-            Point center = currentTetrominoCorners[2]; // Using your previous center of rotation
+            Point center = currentTetrominoCorners[currentTetrominoRotIndex];
             List<Point> newCorners = new List<Point>();
 
             foreach (Point corner in currentTetrominoCorners)
