@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Drawing.Design;
+
 namespace sandtris
 {
     public partial class Form1 : Form
@@ -6,7 +9,10 @@ namespace sandtris
         {
             public Color Color;
             public byte ID;
+            public uint TetrominoID;
         }
+        static uint currentTetrominoId;
+        static uint lastTetrominoCollisionId;
         List<bool[,]> tetrominoShapes = new List<bool[,]>
         {
             new bool[,] { { true, true, true, true } }, // I
@@ -23,15 +29,15 @@ namespace sandtris
             Color.Blue,
             Color.Red,
             Color.Green,
-            Color.Purple,
+            //Color.Purple,
             Color.Wheat,
-            Color.DarkGray,
+            //Color.DarkGray,
         };
         Bitmap bmp;
-        const int CELL_SIZE = 16;
+        const int TETROMINO_SIZE = 8;
         Cell[,] map;
         static Random r = new Random();
-        public void SetCell(int x, int y, byte id, Color color)
+        public void SetCell(int x, int y, byte id, Color color, uint tetrominoId)
         {
             if (x < 0 || y < 0 || x >= map.GetLength(0) || y >= map.GetLength(1))
             {
@@ -39,12 +45,24 @@ namespace sandtris
             }
             map[x, y].ID = id;
             map[x, y].Color = color;
+            map[x, y].TetrominoID = tetrominoId;
+
             bmp.SetPixel(x, y, color);
         }
         public Form1()
         {
             InitializeComponent();
-            map = new Cell[10 * CELL_SIZE, 10 * CELL_SIZE];
+            ClearMap();
+            SpawnTetromino();
+            //SetCell(10, 10, 1, Color.Black);
+            Width = bmp.Width * uiScale;
+            Height = bmp.Height * uiScale;
+            DoubleBuffered = true;
+        }
+
+        private void ClearMap()
+        {
+            map = new Cell[10 * TETROMINO_SIZE, 24 * TETROMINO_SIZE];
             for (int y = 0; y < map.GetLength(1); y++)
             {
                 for (int x = 0; x < map.GetLength(0); x++)
@@ -57,10 +75,8 @@ namespace sandtris
                 }
             }
             bmp = new Bitmap(map.GetLength(0), map.GetLength(1));
-            //SetCell(10, 10, 1, Color.Black);
-            Width = bmp.Width * uiScale;
-            Height = bmp.Height * uiScale;
-            DoubleBuffered = true;
+            lastTetrominoCollisionId = 0;
+            currentTetrominoId = 0;
         }
 
         int uiScale = 4;
@@ -70,28 +86,52 @@ namespace sandtris
             {
                 Application.Exit();
             }
-            if (e.KeyCode == Keys.F)
+            if (e.KeyCode == Keys.A)
             {
-                SpawnTetromino(tetrominoShapes[r.Next(tetrominoShapes.Count)]);
+                moveLeft = true;
             }
+            if (e.KeyCode == Keys.D)
+            {
+                moveRight = true;
+            }
+            if (e.KeyCode == Keys.S)
+            {
+                hardDrop = true;
+            }
+            //if (e.KeyCode == Keys.F)
+            //{
+            //    SpawnTetromino();
+            //}
+            if (e.KeyCode == Keys.Space)
+            {
+                rotate = true;
+            }
+            //if (e.KeyCode == Keys.C)
+            //{
+            //    clear = true;
+            //}
         }
-
-        void SpawnTetromino(bool[,] shape)
+        List<Point> currentTetrominoCorners = new();
+        void SpawnTetromino()
         {
-            int xOffset = (map.GetLength(0) / CELL_SIZE / 2) - 1;
-            byte randomNum = (byte)r.Next(1,palette.Count);
+            bool[,] shape = tetrominoShapes[r.Next(tetrominoShapes.Count)];
+            currentTetrominoId++;
+            currentTetrominoCorners.Clear();
+            int xOffset = (map.GetLength(0) / TETROMINO_SIZE / 2) - 1;
+            byte randomNum = (byte)r.Next(1, palette.Count);
 
             for (int y = 0; y < shape.GetLength(1); y++)
             {
                 for (int x = 0; x < shape.GetLength(0); x++)
                 {
-                    if (shape[x,y])
+                    if (shape[x, y])
                     {
-                        for (int y1 = 0; y1 < CELL_SIZE; y1++)
+                        currentTetrominoCorners.Add(new Point((x + xOffset) * TETROMINO_SIZE, y * TETROMINO_SIZE));
+                        for (int y1 = 0; y1 < TETROMINO_SIZE; y1++)
                         {
-                            for (int x1 = 0; x1 < CELL_SIZE; x1++)
+                            for (int x1 = 0; x1 < TETROMINO_SIZE; x1++)
                             {
-                                SetCell(((x+xOffset) * CELL_SIZE) + x1, (y * CELL_SIZE) + y1, randomNum, palette[randomNum]);
+                                SetCell(((x + xOffset) * TETROMINO_SIZE) + x1, (y * TETROMINO_SIZE) + y1, randomNum, palette[randomNum], currentTetrominoId);
                             }
                         }
                     }
@@ -100,13 +140,21 @@ namespace sandtris
         }
         protected override void OnPaint(PaintEventArgs e)
         {
+            //foreach (var item in currentTetrominoCorners)
+            //{
+            //    //Debug.WriteLine(item.ToString());
+            //    bmp.SetPixel(item.X, item.Y, Color.HotPink);
+            //}
             e.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
             e.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
             e.Graphics.DrawImage(bmp, 0, 0, Width, Height);
         }
-
-        private void timer1_Tick(object sender, EventArgs e)
+        private void Update(object sender, EventArgs e)
         {
+            if (currentTetrominoCorners.Count==0)
+            {
+                SpawnTetromino();
+            }
             for (int y = map.GetLength(1) - 2; y >= 0; y--)
             {
                 for (int x = 0; x < map.GetLength(0); x++)
@@ -116,25 +164,38 @@ namespace sandtris
                     {
                         if (map[x, y + 1].ID == 0) //if below is empty - fall
                         {
-                            SetCell(x, y + 1, map[x, y].ID, map[x, y].Color);
-                            SetCell(x, y, 0, Color.Transparent);
+                            SetCell(x, y + 1, map[x, y].ID, map[x, y].Color, map[x, y].TetrominoID);
+                            SetCell(x, y, 0, Color.Transparent, map[x, y].TetrominoID);
+                            if (y + 1 == map.GetLength(1) - 1)
+                            {
+                                if (map[x, y].TetrominoID > lastTetrominoCollisionId)
+                                {
+                                    SpawnTetromino();
+                                    lastTetrominoCollisionId = Math.Max(lastTetrominoCollisionId, map[x, y].TetrominoID);
+                                }
+                            }
                         }
                         else
                         {
+                            if (map[x, y].TetrominoID > lastTetrominoCollisionId)
+                            {
+                                SpawnTetromino();
+                                lastTetrominoCollisionId = Math.Max(lastTetrominoCollisionId, map[x, y].TetrominoID);
+                            }
                             if (x == 0) //left border - can only go right
                             {
                                 if (map[x + 1, y + 1].ID == 0)
                                 {
-                                    SetCell(x + 1, y + 1, map[x, y].ID, map[x, y].Color);
-                                    SetCell(x, y, 0, Color.Transparent);
+                                    SetCell(x + 1, y + 1, map[x, y].ID, map[x, y].Color, map[x, y].TetrominoID);
+                                    SetCell(x, y, 0, Color.Transparent, map[x, y].TetrominoID);
                                 }
                             }
                             else if (x == map.GetLength(0) - 1) //right border - can only go left
                             {
                                 if (map[x - 1, y + 1].ID == 0)
                                 {
-                                    SetCell(x - 1, y + 1, map[x, y].ID, map[x, y].Color);
-                                    SetCell(x, y, 0, Color.Transparent);
+                                    SetCell(x - 1, y + 1, map[x, y].ID, map[x, y].Color, map[x, y].TetrominoID);
+                                    SetCell(x, y, 0, Color.Transparent, map[x, y].TetrominoID);
                                 }
                             }
                             else //otherwise randomly choose a direction
@@ -143,23 +204,22 @@ namespace sandtris
                                 {
                                     if (map[x + 1, y + 1].ID == 0)
                                     {
-                                        SetCell(x + 1, y + 1, map[x, y].ID, map[x, y].Color);
-                                        SetCell(x, y, 0, Color.Transparent);
+                                        SetCell(x + 1, y + 1, map[x, y].ID, map[x, y].Color, map[x, y].TetrominoID);
+                                        SetCell(x, y, 0, Color.Transparent, map[x, y].TetrominoID);
                                     }
                                 }
                                 else
                                 {
                                     if (map[x - 1, y + 1].ID == 0)
                                     {
-                                        SetCell(x - 1, y + 1, map[x, y].ID, map[x, y].Color);
-                                        SetCell(x, y, 0, Color.Transparent);
+                                        SetCell(x - 1, y + 1, map[x, y].ID, map[x, y].Color, map[x, y].TetrominoID);
+                                        SetCell(x, y, 0, Color.Transparent, map[x, y].TetrominoID);
                                     }
                                 }
                             }
                         }
                     }
                     #endregion
-
                 }
             }
             #region BFS Line Connection Check
@@ -168,7 +228,7 @@ namespace sandtris
 
             for (int y = 0; y < map.GetLength(1); y++)
             {
-                if (map[0, y].ID > 0) // Starting from leftmost edge
+                if (map[0, y].ID > 0 && map[0, y].TetrominoID != currentTetrominoId) // Starting from leftmost edge and ensure it's not the current tetromino
                 {
                     List<(int, int)> currentCells = new List<(int, int)>();
                     bool reachedRightEdge = false;
@@ -178,7 +238,7 @@ namespace sandtris
                     while (queue.Count > 0)
                     {
                         var (cx, cy) = queue.Dequeue();
-                        if (visited[cx, cy] || map[cx, cy].ID != startingID) continue;  // Ensure only cells with the same ID are processed
+                        if (visited[cx, cy] || map[cx, cy].ID != startingID || map[cx, cy].TetrominoID == currentTetrominoId) continue;  // Ensure only cells with the same ID are processed and it's not the current tetromino
 
                         visited[cx, cy] = true;
                         currentCells.Add((cx, cy));
@@ -196,7 +256,7 @@ namespace sandtris
                                 int nx = cx + dx;
                                 int ny = cy + dy;
 
-                                if (nx >= 0 && nx < map.GetLength(0) && ny >= 0 && ny < map.GetLength(1) && !visited[nx, ny] && map[nx, ny].ID == startingID)
+                                if (nx >= 0 && nx < map.GetLength(0) && ny >= 0 && ny < map.GetLength(1) && !visited[nx, ny] && map[nx, ny].ID == startingID && map[nx, ny].TetrominoID != currentTetrominoId)
                                 {
                                     queue.Enqueue((nx, ny));
                                 }
@@ -208,28 +268,355 @@ namespace sandtris
                     {
                         foreach (var (cellX, cellY) in currentCells)
                         {
-                            SetCell(cellX, cellY, 0, Color.Transparent);
+                            SetCell(cellX, cellY, 0, Color.Transparent, currentTetrominoId);
                         }
                     }
                 }
             }
             #endregion
-            if (mLeft)
+            #region Rotation & Movement
+
+            for (int i = 0; i < currentTetrominoCorners.Count; i++)
             {
-                Point ptc = PointToClient(Cursor.Position);
-                SetCell(ptc.X / uiScale, ptc.Y / uiScale, 1, Color.Red);
-                //mLeft = false;
+                currentTetrominoCorners[i] = new Point(currentTetrominoCorners[i].X, currentTetrominoCorners[i].Y + 1);
             }
-            else if (mRight)
+            if (rotate)
             {
-                Point ptc = PointToClient(Cursor.Position);
-                SetCell(ptc.X / uiScale, ptc.Y / uiScale, 2, Color.Black);
-                //mRight = false;
+                RotateCurrentTetromino();
+                rotate = false;
             }
+            if (moveLeft)
+            {
+                MoveLeft();
+            }
+            else if (moveRight)
+            {
+                MoveRight();
+            }
+            if (hardDrop)
+            {
+                hardDrop = false;
+                HardDropCurrentTetromino();
+            }
+
+            #endregion
+            //if (mLeft)
+            //{
+            //    Point ptc = PointToClient(Cursor.Position);
+            //    SetCell(ptc.X / uiScale, ptc.Y / uiScale, 1, Color.Red, currentTetrominoId);
+            //    //mLeft = false;
+            //}
+            //else if (mRight)
+            //{
+            //    Point ptc = PointToClient(Cursor.Position);
+            //    SetCell(ptc.X / uiScale, ptc.Y / uiScale, 2, Color.Black, currentTetrominoId);
+            //    //mRight = false;
+            //}
             Invalidate();
         }
         bool mLeft = false;
         bool mRight = false;
+        bool rotate = false;
+        bool moveLeft = false;
+        bool moveRight = false;
+        private bool clear;
+        private bool hardDrop;
+
+        private bool currentTetrominoIsOShape()
+        {
+            if (currentTetrominoCorners.Count != 4) return false; // The O shape has 4 corners.
+
+            // Sort corners by their X and then Y coordinates for consistent ordering.
+            var sortedCorners = currentTetrominoCorners.OrderBy(p => p.X).ThenBy(p => p.Y).ToList();
+
+            // Check the relative positions of the corners to each other.
+            return sortedCorners[1].X == sortedCorners[0].X && sortedCorners[1].Y == sortedCorners[0].Y + TETROMINO_SIZE &&
+                   sortedCorners[2].X == sortedCorners[0].X + TETROMINO_SIZE && sortedCorners[2].Y == sortedCorners[0].Y &&
+                   sortedCorners[3].X == sortedCorners[0].X + TETROMINO_SIZE && sortedCorners[3].Y == sortedCorners[0].Y + TETROMINO_SIZE;
+        }
+        void RotateCurrentTetromino()
+        {
+            if (!(currentTetrominoCorners != null && currentTetrominoCorners.Count > 0))
+            {
+                return;
+            }
+            if (currentTetrominoIsOShape())
+            {
+                return;
+            }
+
+            Point center = currentTetrominoCorners[3];
+            Cell infoAboutCurrentCell = map[center.X, center.Y];
+
+            // Step 1: Rotate the tetromino
+            List<Point> newCorners = ComputeRotatedCorners();
+
+            // Step 2: Adjust for out of bounds
+            BringWithinBounds(newCorners);
+
+            // Step 3: Check for collisions with existing tetrominos
+            // If colliding, attempt wall kick
+            if (CheckCollision(newCorners))
+            {
+                bool foundSpace = false;
+                // Attempt to move left
+                for (int i = 1; i < TETROMINO_SIZE; i++)
+                {
+                    MoveCorners(newCorners, -i, 0);
+                    if (!CheckCollision(newCorners))
+                    {
+                        foundSpace = true;
+                        break;
+                    }
+                    // Reset the corners before attempting to move right
+                    newCorners = ComputeRotatedCorners();
+                    BringWithinBounds(newCorners);
+                }
+
+                // Attempt to move right if no space was found on the left
+                if (!foundSpace)
+                {
+                    for (int i = 1; i < TETROMINO_SIZE; i++)
+                    {
+                        MoveCorners(newCorners, i, 0);
+                        if (!CheckCollision(newCorners))
+                        {
+                            foundSpace = true;
+                            break;
+                        }
+                        // Reset the corners for the next iteration
+                        newCorners = ComputeRotatedCorners();
+                        BringWithinBounds(newCorners);
+                    }
+                }
+
+                // Step 4: If no fitting space was found, revert the rotation
+                if (!foundSpace)
+                {
+                    return;
+                }
+            }
+
+            // If we made it here, we're clear to draw the rotated tetromino
+            ClearCurrentTetromino(infoAboutCurrentCell);
+            currentTetrominoCorners = newCorners;
+
+            DrawCurrentTetromino(infoAboutCurrentCell);
+
+            // Update current tetromino corners to the new rotated positions
+        }
+        void HardDropCurrentTetromino()
+        {
+            List<Point> newCorners;
+            Cell infoAboutCurrentCell = map[currentTetrominoCorners[2].X, currentTetrominoCorners[2].Y]; // get info from the center
+
+            // Try moving the tetromino down until it can't be moved any further
+            ClearCurrentTetromino(infoAboutCurrentCell);
+
+            while (true)
+            {
+                newCorners = CalculateNewCorners(0, TETROMINO_SIZE);
+                if (WillCollide(newCorners))
+                {
+                    break;
+                }
+                currentTetrominoCorners = newCorners;
+            }
+
+            // Now that the tetromino has landed, draw it at its final position
+            DrawCurrentTetromino(infoAboutCurrentCell);
+
+            // You can add additional steps here if needed, such as checking for completed lines
+        }
+
+        bool WillCollide(List<Point> newCorners)
+        {
+            foreach (Point corner in newCorners)
+            {
+                for (int y = 0; y < TETROMINO_SIZE; y++)
+                {
+                    for (int x = 0; x < TETROMINO_SIZE; x++)
+                    {
+                        int newX = corner.X + x;
+                        int newY = corner.Y + y;
+
+                        // Check for out-of-bounds
+                        if (newX < 0 || newX >= map.GetLength(0) || newY >= map.GetLength(1))
+                        {
+                            return true;
+                        }
+
+                        // Check for collision with existing tetrominos
+                        if (map[newX, newY].ID > 0 && map[newX, newY].TetrominoID != currentTetrominoId)
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        List<Point> CalculateNewCorners(int dx, int dy)
+        {
+            List<Point> newCorners = new List<Point>();
+            foreach (Point corner in currentTetrominoCorners)
+            {
+                newCorners.Add(new Point(corner.X + dx, corner.Y + dy));
+            }
+            return newCorners;
+        }
+        void BringWithinBounds(List<Point> corners)
+        {
+            int minX = corners.Min(p => p.X);
+            int maxX = corners.Max(p => p.X);
+
+            while (minX < 0)
+            {
+                MoveCorners(corners, 1, 0);
+                minX++;
+            }
+
+            while (maxX >= map.GetLength(0))
+            {
+                MoveCorners(corners, -1, 0);
+                maxX--;
+            }
+        }
+
+        void MoveCorners(List<Point> corners, int dx, int dy)
+        {
+            for (int i = 0; i < corners.Count; i++)
+            {
+                corners[i] = new Point(corners[i].X + dx, corners[i].Y + dy);
+            }
+        }
+        List<Point> ComputeRotatedCorners()
+        {
+            Point center = currentTetrominoCorners[2]; // Using your previous center of rotation
+            List<Point> newCorners = new List<Point>();
+
+            foreach (Point corner in currentTetrominoCorners)
+            {
+                int newX = center.Y - corner.Y + center.X;
+                int newY = corner.X - center.X + center.Y;
+                newCorners.Add(new Point(newX, newY));
+            }
+
+            // Check for wall collisions and adjust accordingly
+            foreach (Point corner in newCorners.ToList())
+            {
+                if (corner.X < 0)
+                {
+                    for (int i = 0; i < newCorners.Count; i++)
+                    {
+                        newCorners[i] = new Point(newCorners[i].X + 1, newCorners[i].Y);
+                    }
+                }
+                else if (corner.X >= map.GetLength(0))
+                {
+                    for (int i = 0; i < newCorners.Count; i++)
+                    {
+                        newCorners[i] = new Point(newCorners[i].X - 1, newCorners[i].Y);
+                    }
+                }
+            }
+
+            return newCorners;
+        }
+
+        bool CheckCollision(List<Point> corners)
+        {
+            foreach (Point corner in corners)
+            {
+                if (!IsWithinBounds(corner.X, corner.Y, TETROMINO_SIZE, TETROMINO_SIZE))
+                    return true;
+
+                for (int y = 0; y < TETROMINO_SIZE; y++)
+                {
+                    for (int x = 0; x < TETROMINO_SIZE; x++)
+                    {
+                        int checkX = corner.X + x;
+                        int checkY = corner.Y + y;
+
+                        if (map[checkX, checkY].ID > 0 && map[checkX, checkY].TetrominoID != currentTetrominoId)
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        bool IsWithinBounds(int x, int y, int width = 1, int height = 1)
+        {
+            return x >= 0 && (x + width) <= map.GetLength(0) && y >= 0 && (y + height) <= map.GetLength(1);
+        }
+        void MoveLeft()
+        {
+            List<Point> newCorners = new List<Point>();
+
+            foreach (Point corner in currentTetrominoCorners)
+            {
+                newCorners.Add(new Point(corner.X - 1, corner.Y));
+            }
+
+            if (!CheckCollision(newCorners))
+            {
+                Cell infoAboutCurrentCell = map[currentTetrominoCorners[2].X, currentTetrominoCorners[2].Y];
+                ClearCurrentTetromino(infoAboutCurrentCell);
+                currentTetrominoCorners = newCorners;
+
+                DrawCurrentTetromino(infoAboutCurrentCell);
+            }
+        }
+
+        void MoveRight()
+        {
+            List<Point> newCorners = new List<Point>();
+
+            foreach (Point corner in currentTetrominoCorners)
+            {
+                newCorners.Add(new Point(corner.X + 1, corner.Y));
+            }
+
+            if (!CheckCollision(newCorners))
+            {
+                Cell infoAboutCurrentCell = map[currentTetrominoCorners[2].X, currentTetrominoCorners[2].Y];
+
+                ClearCurrentTetromino(infoAboutCurrentCell);
+                currentTetrominoCorners = newCorners;
+                DrawCurrentTetromino(infoAboutCurrentCell);
+            }
+        }
+        void ClearCurrentTetromino(Cell info)
+        {
+            foreach (Point corner in currentTetrominoCorners)
+            {
+                for (int y = 0; y < TETROMINO_SIZE; y++)
+                {
+                    for (int x = 0; x < TETROMINO_SIZE; x++)
+                    {
+                        SetCell(corner.X + x, corner.Y + y, 0, Color.Transparent, info.TetrominoID);
+                        // Assuming 0 ID and Transparent color means the cell is empty
+                    }
+                }
+            }
+        }
+        void DrawCurrentTetromino(Cell info)
+        {
+            foreach (Point corner in currentTetrominoCorners)
+            {
+                for (int y = 0; y < TETROMINO_SIZE; y++)
+                {
+                    for (int x = 0; x < TETROMINO_SIZE; x++)
+                    {
+                        SetCell(corner.X + x, corner.Y + y, info.ID, info.Color, info.TetrominoID);
+                    }
+                }
+            }
+        }
         private void Form1_MouseDown(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Right)
@@ -253,6 +640,17 @@ namespace sandtris
                 mLeft = false;
             }
         }
-    }
 
+        private void Form1_KeyUp(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.A)
+            {
+                moveLeft = false;
+            }
+            if (e.KeyCode == Keys.D)
+            {
+                moveRight = false;
+            }
+        }
+    }
 }
