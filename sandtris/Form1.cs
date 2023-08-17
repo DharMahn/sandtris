@@ -1,5 +1,7 @@
+using System.Collections;
 using System.Diagnostics;
 using System.Drawing.Design;
+using System.Resources;
 
 namespace sandtris
 {
@@ -57,14 +59,24 @@ namespace sandtris
         public Form1()
         {
             InitializeComponent();
+            ResourceManager rm = new ResourceManager(typeof(Form1));
+
+            patterns = rm.GetResourceSet(System.Globalization.CultureInfo.CurrentCulture, true, true)!
+                         .Cast<DictionaryEntry>()
+                         .Where(x => x.Value.GetType() == typeof(Bitmap))
+                         .Select(x => x.Value)
+                         .Cast<Bitmap>()
+                         .ToList();
             ClearMap();
             SpawnTetromino();
             //SetCell(10, 10, 1, Color.Black);
             Width = bmp.Width * uiScale;
             Height = bmp.Height * uiScale;
             DoubleBuffered = true;
+            
+            Console.WriteLine("lol");
         }
-
+        List<Bitmap> patterns;
         private void ClearMap()
         {
             map = new Cell[10 * TETROMINO_SIZE, 24 * TETROMINO_SIZE];
@@ -117,6 +129,8 @@ namespace sandtris
             //}
         }
         List<Point> currentTetrominoCorners = new();
+        byte currentTetrominoColorIndex;
+        byte currentTetrominoPatternIndex;
         void SpawnTetromino()
         {
             int index = r.Next(tetrominoShapes.Count);
@@ -126,7 +140,8 @@ namespace sandtris
             currentTetrominoId++;
             currentTetrominoCorners.Clear();
             int xOffset = (map.GetLength(0) / TETROMINO_SIZE / 2) - 1;
-            byte randomNum = (byte)r.Next(1, palette.Count);
+            currentTetrominoColorIndex = (byte)r.Next(1, palette.Count);
+            currentTetrominoPatternIndex = (byte)r.Next(patterns.Count);
 
             for (int y = 0; y < shape.GetLength(1); y++)
             {
@@ -134,14 +149,41 @@ namespace sandtris
                 {
                     if (shape[x, y])
                     {
-                        currentTetrominoCorners.Add(new Point((x + xOffset) * TETROMINO_SIZE, y * TETROMINO_SIZE));
-                        for (int y1 = 0; y1 < TETROMINO_SIZE; y1++)
-                        {
-                            for (int x1 = 0; x1 < TETROMINO_SIZE; x1++)
-                            {
-                                SetCell(((x + xOffset) * TETROMINO_SIZE) + x1, (y * TETROMINO_SIZE) + y1, randomNum, palette[randomNum], currentTetrominoId);
-                            }
-                        }
+                        Point tba = new Point((x + xOffset) * TETROMINO_SIZE, y * TETROMINO_SIZE);
+                        currentTetrominoCorners.Add(tba);
+                        DrawCell(tba.X,tba.Y);
+                    }
+                }
+            }
+        }
+        void DrawCell(int baseX, int baseY, bool fillWithTransparent = false)
+        {
+            if (fillWithTransparent)
+            {
+                for (int y1 = 0; y1 < TETROMINO_SIZE; y1++)
+                {
+                    for (int x1 = 0; x1 < TETROMINO_SIZE; x1++)
+                    {
+                        SetCell(baseX + x1, baseY + y1, 0, Color.Transparent,0);
+                    }
+                }
+            }
+            else
+            {
+                for (int y1 = 0; y1 < TETROMINO_SIZE; y1++)
+                {
+                    for (int x1 = 0; x1 < TETROMINO_SIZE; x1++)
+                    {
+                        Color patternColor = patterns[currentTetrominoPatternIndex].GetPixel(x1 % 8, y1 % 8);
+
+                        // Tint the grayscale pattern using the tetromino's color
+                        Color tintedColor = Color.FromArgb(
+                            patternColor.R * palette[currentTetrominoColorIndex].R / 255,
+                            patternColor.G * palette[currentTetrominoColorIndex].G / 255,
+                            patternColor.B * palette[currentTetrominoColorIndex].B / 255
+                        );
+
+                        SetCell(baseX + x1, baseY + y1, currentTetrominoColorIndex, tintedColor, currentTetrominoId);
                     }
                 }
             }
@@ -354,7 +396,6 @@ namespace sandtris
             }
 
             Point center = currentTetrominoCorners[currentTetrominoRotIndex];
-            Cell infoAboutCurrentCell = map[center.X, center.Y];
 
             // Step 1: Rotate the tetromino
             List<Point> newCorners = ComputeRotatedCorners();
@@ -406,20 +447,19 @@ namespace sandtris
             }
 
             // If we made it here, we're clear to draw the rotated tetromino
-            ClearCurrentTetromino(infoAboutCurrentCell);
+            ClearCurrentTetromino();
             currentTetrominoCorners = newCorners;
 
-            DrawCurrentTetromino(infoAboutCurrentCell);
+            DrawCurrentTetromino();
 
             // Update current tetromino corners to the new rotated positions
         }
         void HardDropCurrentTetromino()
         {
             List<Point> newCorners;
-            Cell infoAboutCurrentCell = map[currentTetrominoCorners[2].X, currentTetrominoCorners[2].Y]; // get info from the center
 
             // Try moving the tetromino down until it can't be moved any further
-            ClearCurrentTetromino(infoAboutCurrentCell);
+            ClearCurrentTetromino();
 
             while (true)
             {
@@ -432,7 +472,7 @@ namespace sandtris
             }
 
             // Now that the tetromino has landed, draw it at its final position
-            DrawCurrentTetromino(infoAboutCurrentCell);
+            DrawCurrentTetromino();
 
             // You can add additional steps here if needed, such as checking for completed lines
         }
@@ -572,11 +612,10 @@ namespace sandtris
 
             if (!CheckCollision(newCorners))
             {
-                Cell infoAboutCurrentCell = map[currentTetrominoCorners[2].X, currentTetrominoCorners[2].Y];
-                ClearCurrentTetromino(infoAboutCurrentCell);
+                ClearCurrentTetromino();
                 currentTetrominoCorners = newCorners;
 
-                DrawCurrentTetromino(infoAboutCurrentCell);
+                DrawCurrentTetromino();
             }
         }
 
@@ -591,38 +630,24 @@ namespace sandtris
 
             if (!CheckCollision(newCorners))
             {
-                Cell infoAboutCurrentCell = map[currentTetrominoCorners[2].X, currentTetrominoCorners[2].Y];
 
-                ClearCurrentTetromino(infoAboutCurrentCell);
+                ClearCurrentTetromino();
                 currentTetrominoCorners = newCorners;
-                DrawCurrentTetromino(infoAboutCurrentCell);
+                DrawCurrentTetromino();
             }
         }
-        void ClearCurrentTetromino(Cell info)
+        void ClearCurrentTetromino()
         {
             foreach (Point corner in currentTetrominoCorners)
             {
-                for (int y = 0; y < TETROMINO_SIZE; y++)
-                {
-                    for (int x = 0; x < TETROMINO_SIZE; x++)
-                    {
-                        SetCell(corner.X + x, corner.Y + y, 0, Color.Transparent, info.TetrominoID);
-                        // Assuming 0 ID and Transparent color means the cell is empty
-                    }
-                }
+                DrawCell(corner.X, corner.Y, true);
             }
         }
-        void DrawCurrentTetromino(Cell info)
+        void DrawCurrentTetromino()
         {
             foreach (Point corner in currentTetrominoCorners)
             {
-                for (int y = 0; y < TETROMINO_SIZE; y++)
-                {
-                    for (int x = 0; x < TETROMINO_SIZE; x++)
-                    {
-                        SetCell(corner.X + x, corner.Y + y, info.ID, info.Color, info.TetrominoID);
-                    }
-                }
+                DrawCell(corner.X, corner.Y);
             }
         }
         private void Form1_MouseDown(object sender, MouseEventArgs e)
