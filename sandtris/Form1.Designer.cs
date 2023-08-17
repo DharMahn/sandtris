@@ -29,21 +29,21 @@
         private void InitializeComponent()
         {
             components = new System.ComponentModel.Container();
-            timer1 = new System.Windows.Forms.Timer(components);
-            timer2 = new System.Windows.Forms.Timer(components);
+            logicTimer = new System.Windows.Forms.Timer(components);
+            inputTimer = new System.Windows.Forms.Timer(components);
             SuspendLayout();
             // 
-            // timer1
+            // logicTimer
             // 
-            timer1.Enabled = true;
-            timer1.Interval = 50;
-            timer1.Tick += Update;
+            logicTimer.Enabled = true;
+            logicTimer.Interval = 50;
+            logicTimer.Tick += Update;
             // 
-            // timer2
+            // inputTimer
             // 
-            timer2.Enabled = true;
-            timer2.Interval = 1;
-            timer2.Tick += timer2_Tick;
+            inputTimer.Enabled = true;
+            inputTimer.Interval = 1;
+            inputTimer.Tick += timer2_Tick;
             // 
             // Form1
             // 
@@ -62,7 +62,7 @@
 
         #endregion
 
-        private System.Windows.Forms.Timer timer1;
-        private System.Windows.Forms.Timer timer2;
+        private System.Windows.Forms.Timer logicTimer;
+        private System.Windows.Forms.Timer inputTimer;
     }
 }

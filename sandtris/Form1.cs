@@ -61,7 +61,7 @@ namespace sandtris
         {
             InitializeComponent();
             patterns = new List<Bitmap>();
-            foreach (var item in Directory.GetFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "*.png"))
+            foreach (var item in Directory.GetFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "*.png"))
             {
                 patterns.Add((Bitmap)Image.FromFile(item));
             }
@@ -71,8 +71,6 @@ namespace sandtris
             Width = bmp.Width * uiScale;
             Height = bmp.Height * uiScale;
             DoubleBuffered = true;
-
-            Console.WriteLine("lol");
         }
         List<Bitmap> patterns;
         private void ClearMap()
@@ -95,11 +93,22 @@ namespace sandtris
         }
 
         int uiScale = 4;
+        bool paused = false;
         private void Form1_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.KeyCode == Keys.Escape)
             {
-                Application.Exit();
+                paused = !paused;
+                if (paused)
+                {
+                    logicTimer.Stop();
+                    inputTimer.Stop();
+                }
+                else
+                {
+                    logicTimer.Start();
+                    inputTimer.Start();
+                }
             }
             if (e.KeyCode == Keys.A)
             {
@@ -156,7 +165,7 @@ namespace sandtris
         }
         void DrawCell(int baseX, int baseY, bool fillWithTransparent = false)
         {
-            int scalingFactor = TETROMINO_SIZE / 8; // Assuming TETROMINO_SIZE is a multiple of 8
+            float scalingFactor = TETROMINO_SIZE / 8f; // Assuming TETROMINO_SIZE is a multiple of 8
 
             if (fillWithTransparent)
             {
@@ -174,7 +183,9 @@ namespace sandtris
                 {
                     for (int x1 = 0; x1 < TETROMINO_SIZE; x1++)
                     {
-                        Color patternColor = patterns[currentTetrominoPatternIndex].GetPixel(x1 / scalingFactor, y1 / scalingFactor);
+                        float uvX = x1 / scalingFactor;
+                        float uvY = y1 / scalingFactor;
+                        Color patternColor = patterns[currentTetrominoPatternIndex].GetPixel((int)uvX, (int)uvY);
 
                         // Tint the grayscale pattern using the tetromino's color
                         Color tintedColor = Color.FromArgb(
@@ -190,14 +201,14 @@ namespace sandtris
         }
         protected override void OnPaint(PaintEventArgs e)
         {
-            foreach (var item in currentTetrominoCorners)
-            {
-                //Debug.WriteLine(item.ToString());
-                bmp.SetPixel(item.X, item.Y, Color.HotPink);
-            }
+            //foreach (var item in currentTetrominoCorners)
+            //{
+            //    //Debug.WriteLine(item.ToString());
+            //    bmp.SetPixel(item.X, item.Y, Color.HotPink);
+            //}
             e.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
             e.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
-            e.Graphics.DrawImage(bmp, 0, 0, Width, Height);
+            e.Graphics.DrawImage(bmp, 0, 0, bmp.Width * uiScale, bmp.Height * uiScale);
         }
         private void Update(object sender, EventArgs e)
         {
@@ -330,7 +341,7 @@ namespace sandtris
             {
                 currentTetrominoCorners[i] = new Point(currentTetrominoCorners[i].X, currentTetrominoCorners[i].Y + 1);
             }
-            
+
 
             #endregion
             //if (mLeft)
