@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Diagnostics;
 using System.Drawing.Design;
+using System.Reflection;
 using System.Resources;
 
 namespace sandtris
@@ -59,21 +60,18 @@ namespace sandtris
         public Form1()
         {
             InitializeComponent();
-            ResourceManager rm = new ResourceManager(typeof(Form1));
-
-            patterns = rm.GetResourceSet(System.Globalization.CultureInfo.CurrentCulture, true, true)!
-                         .Cast<DictionaryEntry>()
-                         .Where(x => x.Value.GetType() == typeof(Bitmap))
-                         .Select(x => x.Value)
-                         .Cast<Bitmap>()
-                         .ToList();
+            patterns = new List<Bitmap>();
+            foreach (var item in Directory.GetFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "*.png"))
+            {
+                patterns.Add((Bitmap)Image.FromFile(item));
+            }
             ClearMap();
             SpawnTetromino();
             //SetCell(10, 10, 1, Color.Black);
             Width = bmp.Width * uiScale;
             Height = bmp.Height * uiScale;
             DoubleBuffered = true;
-            
+
             Console.WriteLine("lol");
         }
         List<Bitmap> patterns;
@@ -151,20 +149,22 @@ namespace sandtris
                     {
                         Point tba = new Point((x + xOffset) * TETROMINO_SIZE, y * TETROMINO_SIZE);
                         currentTetrominoCorners.Add(tba);
-                        DrawCell(tba.X,tba.Y);
+                        DrawCell(tba.X, tba.Y);
                     }
                 }
             }
         }
         void DrawCell(int baseX, int baseY, bool fillWithTransparent = false)
         {
+            int scalingFactor = TETROMINO_SIZE / 8; // Assuming TETROMINO_SIZE is a multiple of 8
+
             if (fillWithTransparent)
             {
                 for (int y1 = 0; y1 < TETROMINO_SIZE; y1++)
                 {
                     for (int x1 = 0; x1 < TETROMINO_SIZE; x1++)
                     {
-                        SetCell(baseX + x1, baseY + y1, 0, Color.Transparent,0);
+                        SetCell(baseX + x1, baseY + y1, 0, Color.Transparent, 0);
                     }
                 }
             }
@@ -174,7 +174,7 @@ namespace sandtris
                 {
                     for (int x1 = 0; x1 < TETROMINO_SIZE; x1++)
                     {
-                        Color patternColor = patterns[currentTetrominoPatternIndex].GetPixel(x1 % 8, y1 % 8);
+                        Color patternColor = patterns[currentTetrominoPatternIndex].GetPixel(x1 / scalingFactor, y1 / scalingFactor);
 
                         // Tint the grayscale pattern using the tetromino's color
                         Color tintedColor = Color.FromArgb(
@@ -190,11 +190,11 @@ namespace sandtris
         }
         protected override void OnPaint(PaintEventArgs e)
         {
-            //foreach (var item in currentTetrominoCorners)
-            //{
-            //    //Debug.WriteLine(item.ToString());
-            //    bmp.SetPixel(item.X, item.Y, Color.HotPink);
-            //}
+            foreach (var item in currentTetrominoCorners)
+            {
+                //Debug.WriteLine(item.ToString());
+                bmp.SetPixel(item.X, item.Y, Color.HotPink);
+            }
             e.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
             e.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
             e.Graphics.DrawImage(bmp, 0, 0, Width, Height);
@@ -330,24 +330,7 @@ namespace sandtris
             {
                 currentTetrominoCorners[i] = new Point(currentTetrominoCorners[i].X, currentTetrominoCorners[i].Y + 1);
             }
-            if (rotate)
-            {
-                RotateCurrentTetromino();
-                rotate = false;
-            }
-            if (moveLeft)
-            {
-                MoveLeft();
-            }
-            else if (moveRight)
-            {
-                MoveRight();
-            }
-            if (hardDrop)
-            {
-                hardDrop = false;
-                HardDropCurrentTetromino();
-            }
+            
 
             #endregion
             //if (mLeft)
@@ -362,7 +345,7 @@ namespace sandtris
             //    SetCell(ptc.X / uiScale, ptc.Y / uiScale, 2, Color.Black, currentTetrominoId);
             //    //mRight = false;
             //}
-            Invalidate();
+            //Invalidate();
         }
         bool mLeft = false;
         bool mRight = false;
@@ -684,6 +667,29 @@ namespace sandtris
             {
                 moveRight = false;
             }
+        }
+
+        private void timer2_Tick(object sender, EventArgs e)
+        {
+            if (rotate)
+            {
+                RotateCurrentTetromino();
+                rotate = false;
+            }
+            if (moveLeft)
+            {
+                MoveLeft();
+            }
+            else if (moveRight)
+            {
+                MoveRight();
+            }
+            if (hardDrop)
+            {
+                hardDrop = false;
+                HardDropCurrentTetromino();
+            }
+            Invalidate();
         }
     }
 }

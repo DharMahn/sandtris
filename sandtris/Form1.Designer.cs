@@ -30,13 +30,20 @@
         {
             components = new System.ComponentModel.Container();
             timer1 = new System.Windows.Forms.Timer(components);
+            timer2 = new System.Windows.Forms.Timer(components);
             SuspendLayout();
             // 
             // timer1
             // 
             timer1.Enabled = true;
-            timer1.Interval = 1;
+            timer1.Interval = 50;
             timer1.Tick += Update;
+            // 
+            // timer2
+            // 
+            timer2.Enabled = true;
+            timer2.Interval = 1;
+            timer2.Tick += timer2_Tick;
             // 
             // Form1
             // 
@@ -56,5 +63,6 @@
         #endregion
 
         private System.Windows.Forms.Timer timer1;
+        private System.Windows.Forms.Timer timer2;
     }
 }
