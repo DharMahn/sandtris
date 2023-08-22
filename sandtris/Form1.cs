@@ -140,10 +140,10 @@ namespace sandtris
         byte currentTetrominoPatternIndex;
         void SpawnTetromino()
         {
+            Debug.WriteLine("Spawning tetromino");
             int index = r.Next(tetrominoShapes.Count);
             bool[,] shape = tetrominoShapes[index];
             currentTetrominoRotIndex = tetrominoRotationIndices[index];
-            Debug.WriteLine("Current Tetromino #" + index);
             currentTetrominoId++;
             currentTetrominoCorners.Clear();
             int xOffset = (map.GetLength(0) / TETROMINO_SIZE / 2) - 1;
@@ -201,11 +201,11 @@ namespace sandtris
         }
         protected override void OnPaint(PaintEventArgs e)
         {
-            //foreach (var item in currentTetrominoCorners)
-            //{
-            //    //Debug.WriteLine(item.ToString());
-            //    bmp.SetPixel(item.X, item.Y, Color.HotPink);
-            //}
+            foreach (var item in currentTetrominoCorners)
+            {
+                //Debug.WriteLine(item.ToString());
+                bmp.SetPixel(item.X, item.Y, Color.HotPink);
+            }
             e.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
             e.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
             e.Graphics.DrawImage(bmp, 0, 0, bmp.Width * uiScale, bmp.Height * uiScale);
@@ -215,6 +215,7 @@ namespace sandtris
             if (currentTetrominoCorners.Count == 0)
             {
                 SpawnTetromino();
+                spawned = true;
             }
             for (int y = map.GetLength(1) - 2; y >= 0; y--)
             {
@@ -231,8 +232,11 @@ namespace sandtris
                             {
                                 if (map[x, y].TetrominoID > lastTetrominoCollisionId)
                                 {
+                                    Debug.WriteLine("new collision, cid before: " + lastTetrominoCollisionId);
                                     SpawnTetromino();
                                     lastTetrominoCollisionId = Math.Max(lastTetrominoCollisionId, map[x, y].TetrominoID);
+                                    Debug.WriteLine("new collision, cid after: " + lastTetrominoCollisionId);
+
                                 }
                             }
                         }
@@ -240,8 +244,12 @@ namespace sandtris
                         {
                             if (map[x, y].TetrominoID > lastTetrominoCollisionId)
                             {
+                                Debug.WriteLine("new collision, cid before: " + lastTetrominoCollisionId);
+
                                 SpawnTetromino();
                                 lastTetrominoCollisionId = Math.Max(lastTetrominoCollisionId, map[x, y].TetrominoID);
+                                Debug.WriteLine("new collision, cid after: " + lastTetrominoCollisionId);
+
                             }
                             if (x == 0) //left border - can only go right
                             {
