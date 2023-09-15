@@ -1,8 +1,10 @@
 using System.Collections;
 using System.Diagnostics;
 using System.Drawing.Design;
+using System.Drawing.Text;
 using System.Reflection;
 using System.Resources;
+using System.Runtime.InteropServices;
 
 namespace sandtris
 {
@@ -45,6 +47,7 @@ namespace sandtris
         const int TETROMINO_SIZE = 8;
         Cell[,] map;
         static Random r = new Random();
+        private int score = 0;
         public void SetCell(int x, int y, byte id, Color color, uint tetrominoId)
         {
             if (x < 0 || y < 0 || x >= map.GetLength(0) || y >= map.GetLength(1))
@@ -54,11 +57,17 @@ namespace sandtris
             map[x, y].ID = id;
             map[x, y].Color = color;
             map[x, y].TetrominoID = tetrominoId;
-
             bmp.SetPixel(x, y, color);
+
         }
+        PrivateFontCollection pfc;
         public Form1()
         {
+            pfc = new PrivateFontCollection();
+            pfc.AddFontFile("CompassGold.ttf");  // e.g., "RulerGold.ttf" if it's in the root of your output directory
+            myFont = new Font(pfc.Families[0], 4*uiScale);
+            //GCHandle handle = GCHandle.Alloc(pfc, GCHandleType.Pinned);
+
             InitializeComponent();
             patterns = new List<Bitmap>();
             foreach (var item in Directory.GetFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "*.png"))
@@ -68,10 +77,30 @@ namespace sandtris
             ClearMap();
             SpawnTetromino();
             //SetCell(10, 10, 1, Color.Black);
-            Width = bmp.Width * uiScale;
-            Height = bmp.Height * uiScale;
+            typeof(Panel).InvokeMember("DoubleBuffered", BindingFlags.SetProperty | BindingFlags.Instance | BindingFlags.NonPublic, null, panel1, new object[] { true });
+            panel1.Paint += Panel1_Paint;
+            Width = (int)(bmp!.Width * uiScale * 1.5);
+            panel1.Width = bmp.Width * uiScale;
+            Height = (bmp.Height - (4 * TETROMINO_SIZE)) * uiScale;
+            panel1.Height = (bmp.Height - (4 * TETROMINO_SIZE)) * uiScale;
+            panel1.Left = 4 * uiScale;
+            panel1.BackColor = Color.DarkSlateGray;
+            BackColor = Color.DarkSlateGray;
+            panel1.Top = 0;
             DoubleBuffered = true;
         }
+        Font myFont;
+        private void Panel1_Paint(object? sender, PaintEventArgs e)
+        {
+            //foreach (var item in currentTetrominoCorners)
+            //{
+            //    bmp.SetPixel(item.X, item.Y, Color.HotPink);
+            //}
+            e.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+            e.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+            e.Graphics.DrawImage(bmp, 0, -4 * TETROMINO_SIZE * uiScale, bmp.Width * uiScale, bmp.Height * uiScale);
+        }
+
         List<Bitmap> patterns;
         private void ClearMap()
         {
@@ -199,23 +228,31 @@ namespace sandtris
                 }
             }
         }
+        static SolidBrush wallDark = new SolidBrush(Color.FromArgb(51, 51, 51));
+        static SolidBrush wallNormal = new SolidBrush(Color.FromArgb(102, 102, 102));
+        static SolidBrush wallLight = new SolidBrush(Color.FromArgb(153, 153, 153));
         protected override void OnPaint(PaintEventArgs e)
         {
-            foreach (var item in currentTetrominoCorners)
-            {
-                //Debug.WriteLine(item.ToString());
-                bmp.SetPixel(item.X, item.Y, Color.HotPink);
-            }
-            e.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
-            e.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
-            e.Graphics.DrawImage(bmp, 0, 0, bmp.Width * uiScale, bmp.Height * uiScale);
+            //left side
+            e.Graphics.FillRectangle(wallNormal, 0, 0, 4 * uiScale, Height);
+            e.Graphics.FillRectangle(wallDark, panel1.Left - uiScale, 0, uiScale, panel1.Height);
+            e.Graphics.FillRectangle(wallLight, 0, 0, 4 * uiScale, uiScale);
+
+            //right side
+            e.Graphics.FillRectangle(wallNormal, panel1.Right, 0, 4 * uiScale, Height);
+            e.Graphics.FillRectangle(wallLight, panel1.Right, 0, uiScale, Height);
+            e.Graphics.FillRectangle(wallLight, panel1.Right, 0, 4 * uiScale, uiScale);
+
+            e.Graphics.DrawString("Score: " + score, myFont, Brushes.Black, panel1.Right+(5*uiScale), 0);
+            //bottom (unused)
+            //e.Graphics.FillRectangle(Brushes.Gray, panel1.Left, panel1.Bottom, panel1.Width, 4 * uiScale);
         }
         private void Update(object sender, EventArgs e)
         {
             if (currentTetrominoCorners.Count == 0)
             {
                 SpawnTetromino();
-                spawned = true;
+                lastTetrominoCollisionId = Math.Max(lastTetrominoCollisionId, map[currentTetrominoCorners[0].X, currentTetrominoCorners[0].Y].TetrominoID);
             }
             for (int y = map.GetLength(1) - 2; y >= 0; y--)
             {
@@ -232,11 +269,8 @@ namespace sandtris
                             {
                                 if (map[x, y].TetrominoID > lastTetrominoCollisionId)
                                 {
-                                    Debug.WriteLine("new collision, cid before: " + lastTetrominoCollisionId);
                                     SpawnTetromino();
                                     lastTetrominoCollisionId = Math.Max(lastTetrominoCollisionId, map[x, y].TetrominoID);
-                                    Debug.WriteLine("new collision, cid after: " + lastTetrominoCollisionId);
-
                                 }
                             }
                         }
@@ -244,11 +278,9 @@ namespace sandtris
                         {
                             if (map[x, y].TetrominoID > lastTetrominoCollisionId)
                             {
-                                Debug.WriteLine("new collision, cid before: " + lastTetrominoCollisionId);
 
                                 SpawnTetromino();
                                 lastTetrominoCollisionId = Math.Max(lastTetrominoCollisionId, map[x, y].TetrominoID);
-                                Debug.WriteLine("new collision, cid after: " + lastTetrominoCollisionId);
 
                             }
                             if (x == 0) //left border - can only go right
@@ -335,10 +367,33 @@ namespace sandtris
 
                     if (reachedRightEdge)
                     {
+                        score += currentCells.Count;
+                        logicTimer.Stop();
+                        inputTimer.Stop();
                         foreach (var (cellX, cellY) in currentCells)
                         {
-                            SetCell(cellX, cellY, 0, Color.Transparent, currentTetrominoId);
+                            SetCell(cellX, cellY, 0, Color.White, currentTetrominoId);
                         }
+                        Refresh();
+                        currentCells.Shuffle();
+                        int counter = 0;
+                        while (true)
+                        {
+                            foreach (var (cellX, cellY) in currentCells)
+                            {
+                                SetCell(cellX, cellY, 0, Color.Transparent, currentTetrominoId);
+                                if (counter >= 40)
+                                {
+                                    counter = 0;
+                                    Refresh();
+                                    Thread.Sleep(2);
+                                }
+                                counter++;
+                            }
+                            break;
+                        }
+                        logicTimer.Start();
+                        inputTimer.Start();
                     }
                 }
             }
@@ -534,7 +589,7 @@ namespace sandtris
             }
         }
 
-        void MoveCorners(List<Point> corners, int dx, int dy)
+        static void MoveCorners(List<Point> corners, int dx, int dy)
         {
             for (int i = 0; i < corners.Count; i++)
             {
@@ -708,7 +763,8 @@ namespace sandtris
                 hardDrop = false;
                 HardDropCurrentTetromino();
             }
-            Invalidate();
+            //panel1.Invalidate();
+            Invalidate(true);
         }
     }
 }

@@ -31,6 +31,7 @@
             components = new System.ComponentModel.Container();
             logicTimer = new System.Windows.Forms.Timer(components);
             inputTimer = new System.Windows.Forms.Timer(components);
+            panel1 = new Panel();
             SuspendLayout();
             // 
             // logicTimer
@@ -45,11 +46,20 @@
             inputTimer.Interval = 1;
             inputTimer.Tick += timer2_Tick;
             // 
+            // panel1
+            // 
+            panel1.Anchor = AnchorStyles.None;
+            panel1.Location = new Point(0, 0);
+            panel1.Name = "panel1";
+            panel1.Size = new Size(200, 450);
+            panel1.TabIndex = 0;
+            // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(800, 450);
+            Controls.Add(panel1);
             FormBorderStyle = FormBorderStyle.None;
             Name = "Form1";
             Text = "Form1";
@@ -64,5 +74,6 @@
 
         private System.Windows.Forms.Timer logicTimer;
         private System.Windows.Forms.Timer inputTimer;
+        private Panel panel1;
     }
 }
