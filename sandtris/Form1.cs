@@ -1,3 +1,4 @@
+using System.Buffers.Text;
 using System.Collections;
 using System.Diagnostics;
 using System.Drawing.Design;
@@ -19,6 +20,10 @@ namespace sandtris
         static uint currentTetrominoId;
         static byte currentTetrominoRotIndex;
         static uint lastTetrominoCollisionId;
+        List<char> shapeNames = new List<char>()
+        {
+            'I','O','S','Z','L','J','T'
+        };
         List<bool[,]> tetrominoShapes = new List<bool[,]>
         {
             new bool[,] { { true, true, true, true } }, // I
@@ -58,14 +63,13 @@ namespace sandtris
             map[x, y].Color = color;
             map[x, y].TetrominoID = tetrominoId;
             bmp.SetPixel(x, y, color);
-
         }
         PrivateFontCollection pfc;
         public Form1()
         {
             pfc = new PrivateFontCollection();
             pfc.AddFontFile("CompassGold.ttf");  // e.g., "RulerGold.ttf" if it's in the root of your output directory
-            myFont = new Font(pfc.Families[0], 4*uiScale);
+            myFont = new Font(pfc.Families[0], 4 * uiScale);
             //GCHandle handle = GCHandle.Alloc(pfc, GCHandleType.Pinned);
 
             InitializeComponent();
@@ -74,6 +78,9 @@ namespace sandtris
             {
                 patterns.Add((Bitmap)Image.FromFile(item));
             }
+            nextTetrominoShapeIndex = r.Next(tetrominoShapes.Count);
+            nextTetrominoColorIndex = (byte)r.Next(1, palette.Count);
+            nextTetrominoPatternIndex = (byte)r.Next(patterns.Count);
             ClearMap();
             SpawnTetromino();
             //SetCell(10, 10, 1, Color.Black);
@@ -151,33 +158,32 @@ namespace sandtris
             {
                 hardDrop = true;
             }
-            //if (e.KeyCode == Keys.F)
-            //{
-            //    SpawnTetromino();
-            //}
             if (e.KeyCode == Keys.Space)
             {
                 rotate = true;
             }
-            //if (e.KeyCode == Keys.C)
-            //{
-            //    clear = true;
-            //}
         }
         List<Point> currentTetrominoCorners = new();
         byte currentTetrominoColorIndex;
         byte currentTetrominoPatternIndex;
+        byte nextTetrominoColorIndex;
+        byte nextTetrominoPatternIndex;
+        int nextTetrominoShapeIndex;
+        Bitmap nextTetrominoBitmap = new Bitmap(TETROMINO_SIZE * 4, TETROMINO_SIZE * 4);
         void SpawnTetromino()
         {
+
             Debug.WriteLine("Spawning tetromino");
-            int index = r.Next(tetrominoShapes.Count);
+
+            // Use the next tetromino values
+            int index = nextTetrominoShapeIndex;
             bool[,] shape = tetrominoShapes[index];
             currentTetrominoRotIndex = tetrominoRotationIndices[index];
             currentTetrominoId++;
             currentTetrominoCorners.Clear();
             int xOffset = (map.GetLength(0) / TETROMINO_SIZE / 2) - 1;
-            currentTetrominoColorIndex = (byte)r.Next(1, palette.Count);
-            currentTetrominoPatternIndex = (byte)r.Next(patterns.Count);
+            currentTetrominoColorIndex = nextTetrominoColorIndex;
+            currentTetrominoPatternIndex = nextTetrominoPatternIndex;
 
             for (int y = 0; y < shape.GetLength(1); y++)
             {
@@ -185,16 +191,83 @@ namespace sandtris
                 {
                     if (shape[x, y])
                     {
-                        Point tba = new Point((x + xOffset) * TETROMINO_SIZE, y * TETROMINO_SIZE);
-                        currentTetrominoCorners.Add(tba);
-                        DrawCell(tba.X, tba.Y);
+                        Point toBeAdded = new Point((x + xOffset) * TETROMINO_SIZE, y * TETROMINO_SIZE);
+                        currentTetrominoCorners.Add(toBeAdded);
+                        DrawCell(toBeAdded.X, toBeAdded.Y);
+                    }
+                }
+            }
+            nextTetrominoShapeIndex = r.Next(tetrominoShapes.Count);
+            nextTetrominoColorIndex = (byte)r.Next(1, palette.Count);
+            nextTetrominoPatternIndex = (byte)r.Next(patterns.Count);
+            DrawPreviewTetromino(0, 0, nextTetrominoBitmap);
+            //Debug.WriteLine("\n\n\n\n\n\n\nnext:\n" + shapeNames[nextTetrominoShapeIndex] + "\n" + palette[nextTetrominoColorIndex].ToString() + "\npattern: " + nextTetrominoPatternIndex);
+        }
+        void DrawPreviewTetromino(int baseX, int baseY, Bitmap previewBitmap)
+        {
+            for (int y = 0; y < previewBitmap.Height; y++)
+            {
+                for (int x = 0; x < previewBitmap.Width; x++)
+                {
+                    previewBitmap.SetPixel(x, y, Color.Transparent);
+                }
+            }
+            bool[,] shape = tetrominoShapes[nextTetrominoShapeIndex];
+
+            for (int y1 = 0; y1 < shape.GetLength(1); y1++)
+            {
+                for (int x1 = 0; x1 < shape.GetLength(0); x1++)
+                {
+                    if (shape[x1, y1])
+                    {
+                        DrawPreviewCell(baseX + x1 * TETROMINO_SIZE, baseY + y1 * TETROMINO_SIZE, previewBitmap);
                     }
                 }
             }
         }
+        void DrawPreviewCell(int baseX, int baseY, Bitmap previewBitmap, bool fillWithTransparent = false)
+        {
+            if (fillWithTransparent)
+            {
+                for (int y1 = 0; y1 < TETROMINO_SIZE; y1++)
+                {
+                    for (int x1 = 0; x1 < TETROMINO_SIZE; x1++)
+                    {
+                        SetPreviewPixel(baseX + x1, baseY + y1, Color.Transparent, previewBitmap);
+
+                    }
+                }
+            }
+            for (int y1 = 0; y1 < TETROMINO_SIZE; y1++)
+            {
+                for (int x1 = 0; x1 < TETROMINO_SIZE; x1++)
+                {
+                    float uvX = x1 / scalingFactor;
+                    float uvY = y1 / scalingFactor;
+                    Color patternColor = patterns[nextTetrominoPatternIndex].GetPixel((int)uvX, (int)uvY);
+
+                    Color tintedColor = Color.FromArgb(
+                        patternColor.R * palette[nextTetrominoColorIndex].R / 255,
+                        patternColor.G * palette[nextTetrominoColorIndex].G / 255,
+                        patternColor.B * palette[nextTetrominoColorIndex].B / 255
+                    );
+
+                    SetPreviewPixel(baseX + x1, baseY + y1, tintedColor, previewBitmap);
+                }
+            }
+        }
+
+        void SetPreviewPixel(int x, int y, Color color, Bitmap previewBitmap)
+        {
+            if (x < 0 || y < 0 || x >= previewBitmap.Width || y >= previewBitmap.Height)
+            {
+                return;
+            }
+            previewBitmap.SetPixel(x, y, color);
+        }
+        static float scalingFactor = TETROMINO_SIZE / 8f; // Assuming TETROMINO_SIZE is a multiple of 8
         void DrawCell(int baseX, int baseY, bool fillWithTransparent = false)
         {
-            float scalingFactor = TETROMINO_SIZE / 8f; // Assuming TETROMINO_SIZE is a multiple of 8
 
             if (fillWithTransparent)
             {
@@ -243,7 +316,10 @@ namespace sandtris
             e.Graphics.FillRectangle(wallLight, panel1.Right, 0, uiScale, Height);
             e.Graphics.FillRectangle(wallLight, panel1.Right, 0, 4 * uiScale, uiScale);
 
-            e.Graphics.DrawString("Score: " + score, myFont, Brushes.Black, panel1.Right+(5*uiScale), 0);
+            e.Graphics.DrawString("Score: " + score+"\n\nNext", myFont, Brushes.Black, panel1.Right + (5 * uiScale), 0);
+            e.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+            e.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+            e.Graphics.DrawImage(nextTetrominoBitmap, panel1.Right + (20 * uiScale), 10*uiScale, nextTetrominoBitmap.Width * uiScale/2, nextTetrominoBitmap.Height * uiScale/2);
             //bottom (unused)
             //e.Graphics.FillRectangle(Brushes.Gray, panel1.Left, panel1.Bottom, panel1.Width, 4 * uiScale);
         }
