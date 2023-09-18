@@ -1,16 +1,14 @@
-using System.Buffers.Text;
-using System.Collections;
 using System.Diagnostics;
-using System.Drawing.Design;
 using System.Drawing.Text;
 using System.Reflection;
-using System.Resources;
-using System.Runtime.InteropServices;
 
 namespace sandtris
 {
     public partial class Form1 : Form
     {
+        const int TETROMINO_SIZE = 8;
+        static int uiScale = 4;
+
         struct Cell
         {
             public Color Color;
@@ -20,6 +18,7 @@ namespace sandtris
         static uint currentTetrominoId;
         static byte currentTetrominoRotIndex;
         static uint lastTetrominoCollisionId;
+        static Random r = new Random();
         List<char> shapeNames = new List<char>()
         {
             'I','O','S','Z','L','J','T'
@@ -49,10 +48,44 @@ namespace sandtris
             //Color.DarkGray,
         };
         Bitmap bmp;
-        const int TETROMINO_SIZE = 8;
+        Bitmap nextTetrominoBitmap = new Bitmap(TETROMINO_SIZE * 4, TETROMINO_SIZE * 4);
+
         Cell[,] map;
-        static Random r = new Random();
-        private int score = 0;
+
+        PrivateFontCollection pfc;
+        Font myFont;
+
+        List<Bitmap> patterns;
+        List<Point> currentTetrominoCorners = new();
+
+        byte currentTetrominoColorIndex;
+        byte currentTetrominoPatternIndex;
+
+        byte nextTetrominoColorIndex;
+        byte nextTetrominoPatternIndex;
+        int nextTetrominoShapeIndex;
+
+        int score = 0;
+
+        bool gameOver = false;
+        bool paused = false;
+        Bitmap gameOverBitmap;
+        int selectedOption = 0; // 0 for "New Game", 1 for "Exit"
+        PictureBox gameOverPictureBox;
+
+        bool mLeft = false;
+        bool mRight = false;
+        bool rotate = false;
+        bool moveLeft = false;
+        bool moveRight = false;
+        bool clear;
+        bool hardDrop;
+
+        static SolidBrush wallDark = new SolidBrush(Color.FromArgb(51, 51, 51));
+        static SolidBrush wallNormal = new SolidBrush(Color.FromArgb(102, 102, 102));
+        static SolidBrush wallLight = new SolidBrush(Color.FromArgb(153, 153, 153));
+        Color bgColor = Color.FromArgb(255, 20, 20, 20);
+
         public void SetCell(int x, int y, byte id, Color color, uint tetrominoId)
         {
             if (x < 0 || y < 0 || x >= map.GetLength(0) || y >= map.GetLength(1))
@@ -64,7 +97,6 @@ namespace sandtris
             map[x, y].TetrominoID = tetrominoId;
             bmp.SetPixel(x, y, color);
         }
-        PrivateFontCollection pfc;
         public Form1()
         {
             pfc = new PrivateFontCollection();
@@ -78,12 +110,18 @@ namespace sandtris
             {
                 patterns.Add((Bitmap)Image.FromFile(item));
             }
-            nextTetrominoShapeIndex = r.Next(tetrominoShapes.Count);
-            nextTetrominoColorIndex = (byte)r.Next(1, palette.Count);
-            nextTetrominoPatternIndex = (byte)r.Next(patterns.Count);
-            ClearMap();
-            SpawnTetromino();
-            //SetCell(10, 10, 1, Color.Black);
+            DrawGameOverScreen();
+            gameOverPictureBox = new PictureBox();
+            gameOverPictureBox.Anchor = AnchorStyles.None;
+            gameOverPictureBox.Size = new Size(gameOverBitmap.Width, gameOverBitmap.Height);
+            gameOverPictureBox.Image = gameOverBitmap;
+            gameOverPictureBox.Width = Width;
+            gameOverPictureBox.Height = Height;
+            gameOverPictureBox.BackColor = Color.Transparent;
+            gameOverPictureBox.Location = new Point(0, 0);
+            Controls.Add(gameOverPictureBox);
+            gameOverPictureBox.Visible = false;
+            ResetGame();
             typeof(Panel).InvokeMember("DoubleBuffered", BindingFlags.SetProperty | BindingFlags.Instance | BindingFlags.NonPublic, null, panel1, new object[] { true });
             panel1.Paint += Panel1_Paint;
             Width = (int)(bmp!.Width * uiScale * 1.5);
@@ -91,24 +129,48 @@ namespace sandtris
             Height = (bmp.Height - (4 * TETROMINO_SIZE)) * uiScale;
             panel1.Height = (bmp.Height - (4 * TETROMINO_SIZE)) * uiScale;
             panel1.Left = 4 * uiScale;
-            panel1.BackColor = Color.DarkSlateGray;
-            BackColor = Color.DarkSlateGray;
+            panel1.BackColor = bgColor;
+            BackColor = bgColor;
             panel1.Top = 0;
             DoubleBuffered = true;
+            //SetCell(10, 10, 1, Color.Black);
+
+
         }
-        Font myFont;
+
+        private void ResetGame()
+        {
+            gameOverPictureBox.Visible = false;
+            inputTimer.Start();
+            logicTimer.Start();
+            ClearMap();
+            nextTetrominoBitmap = new Bitmap(TETROMINO_SIZE * 4, TETROMINO_SIZE * 4);
+            currentTetrominoId = 0;
+            score = 0;
+            //currentTetrominoColorIndex = 0;
+            //currentTetrominoPatternIndex = 0;
+            //currentTetrominoRotIndex = 0;
+            lastTetrominoCollisionId = 0;
+            nextTetrominoShapeIndex = r.Next(tetrominoShapes.Count);
+            nextTetrominoColorIndex = (byte)r.Next(1, palette.Count);
+            nextTetrominoPatternIndex = (byte)r.Next(patterns.Count);
+            SpawnTetromino();
+        }
+
         private void Panel1_Paint(object? sender, PaintEventArgs e)
         {
             //foreach (var item in currentTetrominoCorners)
             //{
-            //    bmp.SetPixel(item.X, item.Y, Color.HotPink);
+            //    if (item.Y < bmp.Height)
+            //    {
+            //        bmp.SetPixel(item.X, item.Y, Color.HotPink);
+            //    }
             //}
             e.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
             e.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
             e.Graphics.DrawImage(bmp, 0, -4 * TETROMINO_SIZE * uiScale, bmp.Width * uiScale, bmp.Height * uiScale);
         }
 
-        List<Bitmap> patterns;
         private void ClearMap()
         {
             map = new Cell[10 * TETROMINO_SIZE, 24 * TETROMINO_SIZE];
@@ -128,51 +190,93 @@ namespace sandtris
             currentTetrominoId = 0;
         }
 
-        int uiScale = 4;
-        bool paused = false;
         private void Form1_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.KeyCode == Keys.Escape)
+            if (gameOver)
             {
-                paused = !paused;
-                if (paused)
+                if (e.KeyCode == Keys.D1) //new game
                 {
-                    logicTimer.Stop();
-                    inputTimer.Stop();
+                    gameOver = false;
+                    ResetGame();
                 }
-                else
+                else if (e.KeyCode == Keys.D2) //quit
                 {
-                    logicTimer.Start();
-                    inputTimer.Start();
+                    Environment.Exit(0);
                 }
             }
-            if (e.KeyCode == Keys.A)
+            else
             {
-                moveLeft = true;
-            }
-            if (e.KeyCode == Keys.D)
-            {
-                moveRight = true;
-            }
-            if (e.KeyCode == Keys.S)
-            {
-                hardDrop = true;
-            }
-            if (e.KeyCode == Keys.Space)
-            {
-                rotate = true;
+                if (e.KeyCode == Keys.Escape)
+                {
+                    paused = !paused;
+                    if (paused)
+                    {
+                        logicTimer.Stop();
+                        inputTimer.Stop();
+                    }
+                    else
+                    {
+                        logicTimer.Start();
+                        inputTimer.Start();
+                    }
+                }
+                if (e.KeyCode == Keys.A)
+                {
+                    moveLeft = true;
+                }
+                if (e.KeyCode == Keys.D)
+                {
+                    moveRight = true;
+                }
+                if (e.KeyCode == Keys.S)
+                {
+                    hardDrop = true;
+                }
+                if (e.KeyCode == Keys.Space)
+                {
+                    rotate = true;
+                }
+                if (e.KeyCode == Keys.R)
+                {
+                    ResetGame();
+                }
+                if (e.KeyCode == Keys.F)
+                {
+                    CheckGameOver(true);
+                }
             }
         }
-        List<Point> currentTetrominoCorners = new();
-        byte currentTetrominoColorIndex;
-        byte currentTetrominoPatternIndex;
-        byte nextTetrominoColorIndex;
-        byte nextTetrominoPatternIndex;
-        int nextTetrominoShapeIndex;
-        Bitmap nextTetrominoBitmap = new Bitmap(TETROMINO_SIZE * 4, TETROMINO_SIZE * 4);
+        private void DrawGameOverScreen()
+        {
+            gameOverBitmap = new Bitmap(Width, Height);
+
+            using (Graphics g = Graphics.FromImage(gameOverBitmap))
+            {
+                g.Clear(Color.Transparent);
+
+                const string gameOverText = "GAME OVER";
+                const string newGameText = "1: New Game";
+                const string exitText = "2: Exit";
+
+                SizeF size = g.MeasureString(gameOverText, myFont);
+                PointF location = new PointF((Width - size.Width) / 2, Height / 2 - size.Height);
+                g.DrawString(gameOverText, myFont, Brushes.Red, location);
+
+                PointF newGameLocation = new PointF((Width - size.Width) / 2, Height / 2);
+                PointF exitLocation = new PointF((Width - size.Width) / 2, Height / 2 + size.Height);
+
+                g.DrawString(newGameText, myFont, Brushes.Yellow, newGameLocation);
+                g.DrawString(exitText, myFont, Brushes.Yellow, exitLocation);
+            }
+
+        }
         void SpawnTetromino()
         {
-
+            CheckGameOver();
+            if (gameOver)
+            {
+                return;
+            }
             Debug.WriteLine("Spawning tetromino");
 
             // Use the next tetromino values
@@ -184,7 +288,7 @@ namespace sandtris
             int xOffset = (map.GetLength(0) / TETROMINO_SIZE / 2) - 1;
             currentTetrominoColorIndex = nextTetrominoColorIndex;
             currentTetrominoPatternIndex = nextTetrominoPatternIndex;
-
+            ClearCurrentTetromino();
             for (int y = 0; y < shape.GetLength(1); y++)
             {
                 for (int x = 0; x < shape.GetLength(0); x++)
@@ -193,14 +297,15 @@ namespace sandtris
                     {
                         Point toBeAdded = new Point((x + xOffset) * TETROMINO_SIZE, y * TETROMINO_SIZE);
                         currentTetrominoCorners.Add(toBeAdded);
-                        DrawCell(toBeAdded.X, toBeAdded.Y);
                     }
                 }
             }
             nextTetrominoShapeIndex = r.Next(tetrominoShapes.Count);
             nextTetrominoColorIndex = (byte)r.Next(1, palette.Count);
             nextTetrominoPatternIndex = (byte)r.Next(patterns.Count);
+            DrawCurrentTetromino();
             DrawPreviewTetromino(0, 0, nextTetrominoBitmap);
+
             //Debug.WriteLine("\n\n\n\n\n\n\nnext:\n" + shapeNames[nextTetrominoShapeIndex] + "\n" + palette[nextTetrominoColorIndex].ToString() + "\npattern: " + nextTetrominoPatternIndex);
         }
         void DrawPreviewTetromino(int baseX, int baseY, Bitmap previewBitmap)
@@ -301,9 +406,6 @@ namespace sandtris
                 }
             }
         }
-        static SolidBrush wallDark = new SolidBrush(Color.FromArgb(51, 51, 51));
-        static SolidBrush wallNormal = new SolidBrush(Color.FromArgb(102, 102, 102));
-        static SolidBrush wallLight = new SolidBrush(Color.FromArgb(153, 153, 153));
         protected override void OnPaint(PaintEventArgs e)
         {
             //left side
@@ -316,10 +418,10 @@ namespace sandtris
             e.Graphics.FillRectangle(wallLight, panel1.Right, 0, uiScale, Height);
             e.Graphics.FillRectangle(wallLight, panel1.Right, 0, 4 * uiScale, uiScale);
 
-            e.Graphics.DrawString("Score: " + score+"\n\nNext", myFont, Brushes.Black, panel1.Right + (5 * uiScale), 0);
+            e.Graphics.DrawString("Score: " + score + "\n\nNext", myFont, Brushes.White, panel1.Right + (5 * uiScale), 0);
             e.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
             e.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
-            e.Graphics.DrawImage(nextTetrominoBitmap, panel1.Right + (20 * uiScale), 10*uiScale, nextTetrominoBitmap.Width * uiScale/2, nextTetrominoBitmap.Height * uiScale/2);
+            e.Graphics.DrawImage(nextTetrominoBitmap, panel1.Right + (20 * uiScale), 10 * uiScale, nextTetrominoBitmap.Width * uiScale / 2, nextTetrominoBitmap.Height * uiScale / 2);
             //bottom (unused)
             //e.Graphics.FillRectangle(Brushes.Gray, panel1.Left, panel1.Bottom, panel1.Width, 4 * uiScale);
         }
@@ -480,30 +582,27 @@ namespace sandtris
             {
                 currentTetrominoCorners[i] = new Point(currentTetrominoCorners[i].X, currentTetrominoCorners[i].Y + 1);
             }
-
-
             #endregion
-            //if (mLeft)
-            //{
-            //    Point ptc = PointToClient(Cursor.Position);
-            //    SetCell(ptc.X / uiScale, ptc.Y / uiScale, 1, Color.Red, currentTetrominoId);
-            //    //mLeft = false;
-            //}
-            //else if (mRight)
-            //{
-            //    Point ptc = PointToClient(Cursor.Position);
-            //    SetCell(ptc.X / uiScale, ptc.Y / uiScale, 2, Color.Black, currentTetrominoId);
-            //    //mRight = false;
-            //}
-            //Invalidate();
         }
-        bool mLeft = false;
-        bool mRight = false;
-        bool rotate = false;
-        bool moveLeft = false;
-        bool moveRight = false;
-        private bool clear;
-        private bool hardDrop;
+
+        private void CheckGameOver(bool forceFail = false)
+        {
+            for (int x = 0; x < map.GetLength(0); x++)
+            {
+                if (forceFail || map[x, TETROMINO_SIZE * 4].Color != Color.Transparent)
+                {
+                    gameOver = true;
+                    gameOverPictureBox.BringToFront();
+                    gameOverPictureBox.Visible = true;
+                    Debug.WriteLine("GAMEOVER");
+                    inputTimer.Stop();
+                    logicTimer.Stop();
+                    Refresh();
+                    return;
+                }
+            }
+        }
+
 
         private bool currentTetrominoIsOShape()
         {
@@ -839,8 +938,8 @@ namespace sandtris
                 hardDrop = false;
                 HardDropCurrentTetromino();
             }
-            //panel1.Invalidate();
-            Invalidate(true);
+            panel1.Invalidate();
+            Invalidate();
         }
     }
 }
