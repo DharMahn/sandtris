@@ -7,7 +7,7 @@ namespace sandtris
     public partial class Form1 : Form
     {
         const int TETROMINO_SIZE = 8;
-        static int uiScale = 4;
+        static int uiScale = 2;
 
         struct Cell
         {
@@ -18,12 +18,8 @@ namespace sandtris
         static uint currentTetrominoId;
         static byte currentTetrominoRotIndex;
         static uint lastTetrominoCollisionId;
-        static Random r = new Random();
-        List<char> shapeNames = new List<char>()
-        {
-            'I','O','S','Z','L','J','T'
-        };
-        List<bool[,]> tetrominoShapes = new List<bool[,]>
+        static Random r = new();
+        List<bool[,]> tetrominoShapes = new()
         {
             new bool[,] { { true, true, true, true } }, // I
             new bool[,] { { true, true }, { true, true } }, // O
@@ -33,11 +29,11 @@ namespace sandtris
             new bool[,] { { false, false, true }, { true, true, true } }, // J
             new bool[,] { { true, true, true }, { false, true, false } } // T
         };
-        List<byte> tetrominoRotationIndices = new List<byte>
+        List<byte> tetrominoRotationIndices = new()
         {
             1,1,1,1,2,1,1
         };
-        List<Color> palette = new List<Color>()
+        List<Color> palette = new()
         {
             Color.Transparent,
             Color.Blue,
@@ -48,7 +44,7 @@ namespace sandtris
             //Color.DarkGray,
         };
         Bitmap bmp;
-        Bitmap nextTetrominoBitmap = new Bitmap(TETROMINO_SIZE * 4, TETROMINO_SIZE * 4);
+        Bitmap nextTetrominoBitmap = new(TETROMINO_SIZE * 4, TETROMINO_SIZE * 4);
 
         Cell[,] map;
 
@@ -81,9 +77,9 @@ namespace sandtris
         bool clear;
         bool hardDrop;
 
-        static SolidBrush wallDark = new SolidBrush(Color.FromArgb(51, 51, 51));
-        static SolidBrush wallNormal = new SolidBrush(Color.FromArgb(102, 102, 102));
-        static SolidBrush wallLight = new SolidBrush(Color.FromArgb(153, 153, 153));
+        static SolidBrush wallDark = new(Color.FromArgb(51, 51, 51));
+        static SolidBrush wallNormal = new(Color.FromArgb(102, 102, 102));
+        static SolidBrush wallLight = new(Color.FromArgb(153, 153, 153));
         Color bgColor = Color.FromArgb(255, 20, 20, 20);
 
         public void SetCell(int x, int y, byte id, Color color, uint tetrominoId)
@@ -110,15 +106,15 @@ namespace sandtris
             {
                 patterns.Add((Bitmap)Image.FromFile(item));
             }
-            DrawGameOverScreen();
+            //DrawGameOverScreen();
             gameOverPictureBox = new PictureBox();
             gameOverPictureBox.Anchor = AnchorStyles.None;
-            gameOverPictureBox.Size = new Size(gameOverBitmap.Width, gameOverBitmap.Height);
-            gameOverPictureBox.Image = gameOverBitmap;
+            //gameOverPictureBox.Image = gameOverBitmap;
             gameOverPictureBox.Width = Width;
             gameOverPictureBox.Height = Height;
             gameOverPictureBox.BackColor = Color.Transparent;
             gameOverPictureBox.Location = new Point(0, 0);
+            gameOverPictureBox.Paint += GameOverPictureBox_Paint;
             Controls.Add(gameOverPictureBox);
             gameOverPictureBox.Visible = false;
             ResetGame();
@@ -134,8 +130,25 @@ namespace sandtris
             panel1.Top = 0;
             DoubleBuffered = true;
             //SetCell(10, 10, 1, Color.Black);
+            FormBorderStyle = FormBorderStyle.FixedSingle;
 
+        }
 
+        private void GameOverPictureBox_Paint(object? sender, PaintEventArgs e)
+        {
+            const string gameOverText = "GAME OVER";
+            const string newGameText = "1: New Game";
+            const string exitText = "2: Exit";
+
+            SizeF size = e.Graphics.MeasureString(gameOverText, myFont);
+            PointF location = new((gameOverPictureBox.Width - size.Width) / 2, gameOverPictureBox.Height / 2 - size.Height);
+            e.Graphics.DrawString(gameOverText, myFont, Brushes.Red, location);
+
+            PointF newGameLocation = new((gameOverPictureBox.Width - size.Width) / 2, gameOverPictureBox.Height / 2);
+            PointF exitLocation = new((gameOverPictureBox.Width - size.Width) / 2, gameOverPictureBox.Height / 2 + size.Height);
+
+            e.Graphics.DrawString(newGameText, myFont, Brushes.Yellow, newGameLocation);
+            e.Graphics.DrawString(exitText, myFont, Brushes.Yellow, exitLocation);
         }
 
         private void ResetGame()
@@ -252,23 +265,22 @@ namespace sandtris
 
             using (Graphics g = Graphics.FromImage(gameOverBitmap))
             {
-                g.Clear(Color.Transparent);
+                g.Clear(wallDark.Color);
 
                 const string gameOverText = "GAME OVER";
                 const string newGameText = "1: New Game";
                 const string exitText = "2: Exit";
 
                 SizeF size = g.MeasureString(gameOverText, myFont);
-                PointF location = new PointF((Width - size.Width) / 2, Height / 2 - size.Height);
+                PointF location = new((Width - size.Width) / 2, Height / 2 - size.Height);
                 g.DrawString(gameOverText, myFont, Brushes.Red, location);
 
-                PointF newGameLocation = new PointF((Width - size.Width) / 2, Height / 2);
-                PointF exitLocation = new PointF((Width - size.Width) / 2, Height / 2 + size.Height);
+                PointF newGameLocation = new((Width - size.Width) / 2, Height / 2);
+                PointF exitLocation = new((Width - size.Width) / 2, Height / 2 + size.Height);
 
                 g.DrawString(newGameText, myFont, Brushes.Yellow, newGameLocation);
                 g.DrawString(exitText, myFont, Brushes.Yellow, exitLocation);
             }
-
         }
         void SpawnTetromino()
         {
@@ -295,7 +307,7 @@ namespace sandtris
                 {
                     if (shape[x, y])
                     {
-                        Point toBeAdded = new Point((x + xOffset) * TETROMINO_SIZE, y * TETROMINO_SIZE);
+                        Point toBeAdded = new((x + xOffset) * TETROMINO_SIZE, y * TETROMINO_SIZE);
                         currentTetrominoCorners.Add(toBeAdded);
                     }
                 }
@@ -503,13 +515,13 @@ namespace sandtris
             }
             #region BFS Line Connection Check
             bool[,] visited = new bool[map.GetLength(0), map.GetLength(1)];
-            Queue<(int, int)> queue = new Queue<(int, int)>();
+            Queue<(int, int)> queue = new();
 
             for (int y = 0; y < map.GetLength(1); y++)
             {
                 if (map[0, y].ID > 0 && map[0, y].TetrominoID != currentTetrominoId) // Starting from leftmost edge and ensure it's not the current tetromino
                 {
-                    List<(int, int)> currentCells = new List<(int, int)>();
+                    List<(int, int)> currentCells = new();
                     bool reachedRightEdge = false;
                     int startingID = map[0, y].ID;  // ID of the cell on the leftmost edge
 
@@ -627,8 +639,6 @@ namespace sandtris
                 return;
             }
 
-            Point center = currentTetrominoCorners[currentTetrominoRotIndex];
-
             // Step 1: Rotate the tetromino
             List<Point> newCorners = ComputeRotatedCorners();
 
@@ -739,7 +749,7 @@ namespace sandtris
 
         List<Point> CalculateNewCorners(int dx, int dy)
         {
-            List<Point> newCorners = new List<Point>();
+            List<Point> newCorners = new();
             foreach (Point corner in currentTetrominoCorners)
             {
                 newCorners.Add(new Point(corner.X + dx, corner.Y + dy));
@@ -774,7 +784,7 @@ namespace sandtris
         List<Point> ComputeRotatedCorners()
         {
             Point center = currentTetrominoCorners[currentTetrominoRotIndex];
-            List<Point> newCorners = new List<Point>();
+            List<Point> newCorners = new();
 
             foreach (Point corner in currentTetrominoCorners)
             {
@@ -835,7 +845,7 @@ namespace sandtris
         }
         void MoveLeft()
         {
-            List<Point> newCorners = new List<Point>();
+            List<Point> newCorners = new();
 
             foreach (Point corner in currentTetrominoCorners)
             {
@@ -853,7 +863,7 @@ namespace sandtris
 
         void MoveRight()
         {
-            List<Point> newCorners = new List<Point>();
+            List<Point> newCorners = new();
 
             foreach (Point corner in currentTetrominoCorners)
             {
