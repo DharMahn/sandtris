@@ -97,9 +97,9 @@ namespace sandtris
         {
             pfc = new PrivateFontCollection();
             pfc.AddFontFile("CompassGold.ttf");  // e.g., "RulerGold.ttf" if it's in the root of your output directory
-            myFont = new Font(pfc.Families[0], 4 * uiScale);
+            myFont = new Font(pfc.Families[0], 6 * uiScale);
             //GCHandle handle = GCHandle.Alloc(pfc, GCHandleType.Pinned);
-
+            uiScale = int.Parse(System.Configuration.ConfigurationManager.AppSettings["uiScale"] ?? "2");
             InitializeComponent();
             patterns = new List<Bitmap>();
             foreach (var item in Directory.GetFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "*.png"))
@@ -120,7 +120,7 @@ namespace sandtris
             ResetGame();
             typeof(Panel).InvokeMember("DoubleBuffered", BindingFlags.SetProperty | BindingFlags.Instance | BindingFlags.NonPublic, null, panel1, new object[] { true });
             panel1.Paint += Panel1_Paint;
-            Width = (int)(bmp!.Width * uiScale * 1.5);
+            Width = (int)(bmp!.Width * uiScale * 1.75);
             panel1.Width = bmp.Width * uiScale;
             Height = (bmp.Height - (4 * TETROMINO_SIZE)) * uiScale;
             panel1.Height = (bmp.Height - (4 * TETROMINO_SIZE)) * uiScale;
@@ -131,7 +131,6 @@ namespace sandtris
             DoubleBuffered = true;
             //SetCell(10, 10, 1, Color.Black);
             FormBorderStyle = FormBorderStyle.FixedSingle;
-
         }
 
         private void GameOverPictureBox_Paint(object? sender, PaintEventArgs e)
@@ -430,10 +429,10 @@ namespace sandtris
             e.Graphics.FillRectangle(wallLight, panel1.Right, 0, uiScale, Height);
             e.Graphics.FillRectangle(wallLight, panel1.Right, 0, 4 * uiScale, uiScale);
 
-            e.Graphics.DrawString("Score: " + score + "\n\nNext", myFont, Brushes.White, panel1.Right + (5 * uiScale), 0);
+            e.Graphics.DrawString("Score: " + score + "\n\nNext:", myFont, Brushes.White, panel1.Right + (5 * uiScale), 0);
             e.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
             e.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
-            e.Graphics.DrawImage(nextTetrominoBitmap, panel1.Right + (20 * uiScale), 10 * uiScale, nextTetrominoBitmap.Width * uiScale / 2, nextTetrominoBitmap.Height * uiScale / 2);
+            e.Graphics.DrawImage(nextTetrominoBitmap, panel1.Right + (25 * uiScale), 15 * uiScale, nextTetrominoBitmap.Width * uiScale / 2, nextTetrominoBitmap.Height * uiScale / 2);
             //bottom (unused)
             //e.Graphics.FillRectangle(Brushes.Gray, panel1.Left, panel1.Bottom, panel1.Width, 4 * uiScale);
         }
