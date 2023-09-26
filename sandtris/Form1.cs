@@ -1,3 +1,4 @@
+using System.Configuration;
 using System.Diagnostics;
 using System.Drawing.Text;
 using System.Reflection;
@@ -65,16 +66,11 @@ namespace sandtris
 
         bool gameOver = false;
         bool paused = false;
-        Bitmap gameOverBitmap;
-        int selectedOption = 0; // 0 for "New Game", 1 for "Exit"
         PictureBox gameOverPictureBox;
 
-        bool mLeft = false;
-        bool mRight = false;
         bool rotate = false;
         bool moveLeft = false;
         bool moveRight = false;
-        bool clear;
         bool hardDrop;
 
         static SolidBrush wallDark = new(Color.FromArgb(51, 51, 51));
@@ -82,6 +78,59 @@ namespace sandtris
         static SolidBrush wallLight = new(Color.FromArgb(153, 153, 153));
         Color bgColor = Color.FromArgb(255, 20, 20, 20);
 
+        public Form1()
+        {
+            InitializeComponent();
+
+            pfc = new PrivateFontCollection();
+            pfc.AddFontFile("CompassGold.ttf");
+
+            patterns = new List<Bitmap>();
+            foreach (var item in Directory.GetFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "*.png"))
+            {
+                patterns.Add((Bitmap)Image.FromFile(item));
+            }
+
+            gameOverPictureBox = new()
+            {
+                Anchor = AnchorStyles.None,
+                Width = Width,
+                Height = Height,
+                BackColor = Color.Transparent,
+                Location = new Point(0, 0)
+            };
+
+            gameOverPictureBox.Paint += GameOverPictureBox_Paint;
+            Controls.Add(gameOverPictureBox);
+            gameOverPictureBox.Visible = false;
+
+            ResetGame();
+
+            typeof(Panel).InvokeMember("DoubleBuffered", BindingFlags.SetProperty | BindingFlags.Instance | BindingFlags.NonPublic, null, panel1, new object[] { true });
+            panel1.Paint += Panel1_Paint;
+            panel1.BackColor = bgColor;
+            BackColor = bgColor;
+            Debug.WriteLine(panel1.Location.ToString());
+            DoubleBuffered = true;
+            FormBorderStyle = FormBorderStyle.FixedToolWindow;
+            UpdateUIScale(-1);
+        }
+        private void RescaleUI()
+        {
+            // Adjust font based on the uiScale
+            myFont = new Font(pfc.Families[0], 6 * uiScale);
+
+            // Rescale various UI elements
+            ClientSize = new Size((int)(bmp!.Width * uiScale * 1.75), (bmp.Height - (4 * TETROMINO_SIZE)) * uiScale);
+            panel1.Width = bmp.Width * uiScale;
+            panel1.Height = (bmp.Height - (4 * TETROMINO_SIZE)) * uiScale;
+            panel1.Left = 4 * uiScale;
+            panel1.Top = 0;
+            gameOverPictureBox.Width = ClientSize.Width;
+            gameOverPictureBox.Height = ClientSize.Height;
+            Debug.WriteLine(panel1.Location.ToString());
+
+        }
         public void SetCell(int x, int y, byte id, Color color, uint tetrominoId)
         {
             if (x < 0 || y < 0 || x >= map.GetLength(0) || y >= map.GetLength(1))
@@ -93,46 +142,56 @@ namespace sandtris
             map[x, y].TetrominoID = tetrominoId;
             bmp.SetPixel(x, y, color);
         }
-        public Form1()
+        public void UpdateUIScale(int scaleValue)
         {
-            pfc = new PrivateFontCollection();
-            pfc.AddFontFile("CompassGold.ttf");  // e.g., "RulerGold.ttf" if it's in the root of your output directory
-            myFont = new Font(pfc.Families[0], 6 * uiScale);
-            //GCHandle handle = GCHandle.Alloc(pfc, GCHandleType.Pinned);
-            uiScale = int.Parse(System.Configuration.ConfigurationManager.AppSettings["uiScale"] ?? "2");
-            InitializeComponent();
-            patterns = new List<Bitmap>();
-            foreach (var item in Directory.GetFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "*.png"))
-            {
-                patterns.Add((Bitmap)Image.FromFile(item));
-            }
-            //DrawGameOverScreen();
-            gameOverPictureBox = new PictureBox();
-            gameOverPictureBox.Anchor = AnchorStyles.None;
-            //gameOverPictureBox.Image = gameOverBitmap;
-            gameOverPictureBox.Width = Width;
-            gameOverPictureBox.Height = Height;
-            gameOverPictureBox.BackColor = Color.Transparent;
-            gameOverPictureBox.Location = new Point(0, 0);
-            gameOverPictureBox.Paint += GameOverPictureBox_Paint;
-            Controls.Add(gameOverPictureBox);
-            gameOverPictureBox.Visible = false;
-            ResetGame();
-            typeof(Panel).InvokeMember("DoubleBuffered", BindingFlags.SetProperty | BindingFlags.Instance | BindingFlags.NonPublic, null, panel1, new object[] { true });
-            panel1.Paint += Panel1_Paint;
-            Width = (int)(bmp!.Width * uiScale * 1.75);
-            panel1.Width = bmp.Width * uiScale;
-            Height = (bmp.Height - (4 * TETROMINO_SIZE)) * uiScale;
-            panel1.Height = (bmp.Height - (4 * TETROMINO_SIZE)) * uiScale;
-            panel1.Left = 4 * uiScale;
-            panel1.BackColor = bgColor;
-            BackColor = bgColor;
-            panel1.Top = 0;
-            DoubleBuffered = true;
-            //SetCell(10, 10, 1, Color.Black);
-            FormBorderStyle = FormBorderStyle.FixedSingle;
-        }
+            Configuration config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
 
+            // If -1 is passed in, load the value from the config or set defaults
+            if (scaleValue == -1)
+            {
+                if (config.AppSettings.Settings["uiScale"] != null)
+                {
+                    // Try to parse the uiScale from the app.config
+                    if (int.TryParse(config.AppSettings.Settings["uiScale"].Value, out int parsedValue) && parsedValue >= 1 && parsedValue <= 9)
+                    {
+                        uiScale = parsedValue;
+                    }
+                    else
+                    {
+                        // If parsing failed or value is out of bounds, set to a default
+                        uiScale = 2;
+                    }
+                }
+                else
+                {
+                    // If "uiScale" doesn't exist in app.config, set default and also add to app.config
+                    uiScale = 2;
+                    config.AppSettings.Settings.Add("uiScale", uiScale.ToString());
+                    config.Save(ConfigurationSaveMode.Modified);
+                }
+            }
+            else if (scaleValue >= 1 && scaleValue <= 9)
+            {
+                // If a valid scale value is passed, update both in-memory and config
+                uiScale = scaleValue;
+
+                if (config.AppSettings.Settings["uiScale"] != null)
+                {
+                    config.AppSettings.Settings["uiScale"].Value = scaleValue.ToString();
+                }
+                else
+                {
+                    config.AppSettings.Settings.Add("uiScale", scaleValue.ToString());
+                }
+
+                config.Save(ConfigurationSaveMode.Modified);
+            }
+            else
+            {
+                throw new ArgumentOutOfRangeException(nameof(scaleValue), "Valid scale values are between 1 and 9 or -1 to load from config.");
+            }
+            RescaleUI();
+        }
         private void GameOverPictureBox_Paint(object? sender, PaintEventArgs e)
         {
             const string gameOverText = "GAME OVER";
@@ -180,7 +239,13 @@ namespace sandtris
             //}
             e.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
             e.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
-            e.Graphics.DrawImage(bmp, 0, -4 * TETROMINO_SIZE * uiScale, bmp.Width * uiScale, bmp.Height * uiScale);
+            RectangleF sourceRect = new RectangleF(0, 4 * TETROMINO_SIZE, bmp.Width, bmp.Height - 4 * TETROMINO_SIZE);
+
+            // Destination rectangle (where and how big the source should be drawn)
+            RectangleF destRect = new RectangleF(0, 0, bmp.Width * uiScale, (bmp.Height - 4 * TETROMINO_SIZE) * uiScale);
+
+            // Draw the image
+            e.Graphics.DrawImage(bmp, destRect, sourceRect, GraphicsUnit.Pixel);
         }
 
         private void ClearMap()
@@ -256,29 +321,18 @@ namespace sandtris
                 {
                     CheckGameOver(true);
                 }
-            }
-        }
-        private void DrawGameOverScreen()
-        {
-            gameOverBitmap = new Bitmap(Width, Height);
-
-            using (Graphics g = Graphics.FromImage(gameOverBitmap))
-            {
-                g.Clear(wallDark.Color);
-
-                const string gameOverText = "GAME OVER";
-                const string newGameText = "1: New Game";
-                const string exitText = "2: Exit";
-
-                SizeF size = g.MeasureString(gameOverText, myFont);
-                PointF location = new((Width - size.Width) / 2, Height / 2 - size.Height);
-                g.DrawString(gameOverText, myFont, Brushes.Red, location);
-
-                PointF newGameLocation = new((Width - size.Width) / 2, Height / 2);
-                PointF exitLocation = new((Width - size.Width) / 2, Height / 2 + size.Height);
-
-                g.DrawString(newGameText, myFont, Brushes.Yellow, newGameLocation);
-                g.DrawString(exitText, myFont, Brushes.Yellow, exitLocation);
+                if (e.KeyCode >= Keys.D1 && e.KeyCode <= Keys.D9) // For top row number keys
+                {
+                    // Subtracting with Keys.D1 gives 0 for '1', 1 for '2'... so add 1.
+                    int pressedNumber = e.KeyCode - Keys.D1 + 1;
+                    UpdateUIScale(pressedNumber);
+                }
+                // If you also want to consider the number pad:
+                else if (e.KeyCode >= Keys.NumPad1 && e.KeyCode <= Keys.NumPad9)
+                {
+                    int pressedNumber = e.KeyCode - Keys.NumPad1 + 1;
+                    UpdateUIScale(pressedNumber);
+                }
             }
         }
         void SpawnTetromino()
@@ -373,7 +427,7 @@ namespace sandtris
             }
         }
 
-        void SetPreviewPixel(int x, int y, Color color, Bitmap previewBitmap)
+        static void SetPreviewPixel(int x, int y, Color color, Bitmap previewBitmap)
         {
             if (x < 0 || y < 0 || x >= previewBitmap.Width || y >= previewBitmap.Height)
             {
@@ -428,11 +482,17 @@ namespace sandtris
             e.Graphics.FillRectangle(wallNormal, panel1.Right, 0, 4 * uiScale, Height);
             e.Graphics.FillRectangle(wallLight, panel1.Right, 0, uiScale, Height);
             e.Graphics.FillRectangle(wallLight, panel1.Right, 0, 4 * uiScale, uiScale);
+            string stringToDraw = "Score: " + score + "\n\n\n";
+            SizeF stringSize = e.Graphics.MeasureString(stringToDraw, myFont);
+            e.Graphics.DrawString(stringToDraw, myFont, Brushes.White, panel1.Right + (5 * uiScale), 0);
+            float pictureHeight = stringSize.Height;
+            stringToDraw = "Next:";
+            stringSize = e.Graphics.MeasureString(stringToDraw, myFont);
+            e.Graphics.DrawString(stringToDraw, myFont, Brushes.White, panel1.Right + (5 * uiScale), pictureHeight);
 
-            e.Graphics.DrawString("Score: " + score + "\n\nNext:", myFont, Brushes.White, panel1.Right + (5 * uiScale), 0);
             e.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
             e.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
-            e.Graphics.DrawImage(nextTetrominoBitmap, panel1.Right + (25 * uiScale), 15 * uiScale, nextTetrominoBitmap.Width * uiScale / 2, nextTetrominoBitmap.Height * uiScale / 2);
+            e.Graphics.DrawImage(nextTetrominoBitmap, panel1.Right + (5 * uiScale) + stringSize.Width, pictureHeight, nextTetrominoBitmap.Width * uiScale / 2, nextTetrominoBitmap.Height * uiScale / 2);
             //bottom (unused)
             //e.Graphics.FillRectangle(Brushes.Gray, panel1.Left, panel1.Bottom, panel1.Width, 4 * uiScale);
         }
@@ -615,7 +675,7 @@ namespace sandtris
         }
 
 
-        private bool currentTetrominoIsOShape()
+        private bool CurrentTetrominoIsOShape()
         {
             if (currentTetrominoCorners.Count != 4) return false; // The O shape has 4 corners.
 
@@ -633,7 +693,7 @@ namespace sandtris
             {
                 return;
             }
-            if (currentTetrominoIsOShape())
+            if (CurrentTetrominoIsOShape())
             {
                 return;
             }
@@ -889,29 +949,6 @@ namespace sandtris
             foreach (Point corner in currentTetrominoCorners)
             {
                 DrawCell(corner.X, corner.Y);
-            }
-        }
-        private void Form1_MouseDown(object sender, MouseEventArgs e)
-        {
-            if (e.Button == MouseButtons.Right)
-            {
-                mRight = true;
-            }
-            else if (e.Button == MouseButtons.Left)
-            {
-                mLeft = true;
-            }
-        }
-
-        private void Form1_MouseUp(object sender, MouseEventArgs e)
-        {
-            if (e.Button == MouseButtons.Right)
-            {
-                mRight = false;
-            }
-            else if (e.Button == MouseButtons.Left)
-            {
-                mLeft = false;
             }
         }
 
