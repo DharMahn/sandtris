@@ -121,7 +121,7 @@ namespace sandtris
             myFont = new Font(pfc.Families[0], 6 * uiScale);
 
             // Rescale various UI elements
-            ClientSize = new Size((int)(bmp!.Width * uiScale * 1.75), (bmp.Height - (4 * TETROMINO_SIZE)) * uiScale);
+            ClientSize = new Size((int)(bmp.Width * uiScale * 1.75), (bmp.Height - (4 * TETROMINO_SIZE)) * uiScale);
             panel1.Width = bmp.Width * uiScale;
             panel1.Height = (bmp.Height - (4 * TETROMINO_SIZE)) * uiScale;
             panel1.Left = 4 * uiScale;

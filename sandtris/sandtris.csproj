@@ -9,6 +9,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="NAudio.Core" Version="2.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="pattern1.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
