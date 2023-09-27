@@ -100,7 +100,7 @@ namespace sandtris
 
             gameOverPictureBox = new()
             {
-                Anchor = AnchorStyles.None,
+                Anchor = AnchorStyles.Left|AnchorStyles.Top|AnchorStyles.Right|AnchorStyles.Bottom,
                 Width = Width,
                 Height = Height,
                 BackColor = Color.Transparent,
