@@ -1,5 +1,6 @@
 using System.Configuration;
 using System.Diagnostics;
+using System.Drawing;
 using System.Drawing.Text;
 using System.Reflection;
 
@@ -9,12 +10,16 @@ namespace sandtris
     {
         const int TETROMINO_SIZE = 8;
         static int uiScale = 2;
-
+        enum CellType
+        {
+            Sand, Static
+        }
         struct Cell
         {
             public Color Color;
             public byte ID;
             public uint TetrominoID;
+            public CellType Type;
         }
         static uint currentTetrominoId;
         static byte currentTetrominoRotIndex;
@@ -34,7 +39,7 @@ namespace sandtris
         {
             1,1,1,1,2,1,1
         };
-        List<Color> palette = new()
+        List<Color> tetrominoPalette = new()
         {
             Color.Transparent,
             Color.Blue,
@@ -44,6 +49,8 @@ namespace sandtris
             Color.Wheat,
             //Color.DarkGray,
         };
+        Color staticColor = Color.Cyan;
+
         Bitmap bmp;
         Bitmap nextTetrominoBitmap = new(TETROMINO_SIZE * 4, TETROMINO_SIZE * 4);
 
@@ -215,32 +222,44 @@ namespace sandtris
             inputTimer.Start();
             logicTimer.Start();
             ClearMap();
+            for (int y = 0; y < TETROMINO_SIZE; y++)
+            {
+                for (int x = 0; x < TETROMINO_SIZE; x++)
+                {
+                    SetCell(x, y + (TETROMINO_SIZE * 23), new Cell
+                    {
+                        Color = staticColor,
+                        ID = 99,
+                        Type = CellType.Static
+                    });
+                    bmp.SetPixel(x, y + (TETROMINO_SIZE * 23), staticColor);
+                }
+            }
             nextTetrominoBitmap = new Bitmap(TETROMINO_SIZE * 4, TETROMINO_SIZE * 4);
             currentTetrominoId = 0;
             score = 0;
-            //currentTetrominoColorIndex = 0;
-            //currentTetrominoPatternIndex = 0;
-            //currentTetrominoRotIndex = 0;
             lastTetrominoCollisionId = 0;
             nextTetrominoShapeIndex = r.Next(tetrominoShapes.Count);
-            nextTetrominoColorIndex = (byte)r.Next(1, palette.Count);
+            nextTetrominoColorIndex = (byte)r.Next(1, tetrominoPalette.Count);
             nextTetrominoPatternIndex = (byte)r.Next(patterns.Count);
             SpawnTetromino();
         }
 
+        private void SetCell(int x, int y, Cell cell)
+        {
+            if (x < 0 || y < 0 || x >= map.GetLength(0) || y >= map.GetLength(1))
+            {
+                return;
+            }
+            map[x, y] = cell;
+        }
+
         private void Panel1_Paint(object? sender, PaintEventArgs e)
         {
-            //foreach (var item in currentTetrominoCorners)
-            //{
-            //    if (item.Y < bmp.Height)
-            //    {
-            //        bmp.SetPixel(item.X, item.Y, Color.HotPink);
-            //    }
-            //}
             e.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
             e.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
-            RectangleF sourceRect = new RectangleF(0, 4 * TETROMINO_SIZE, bmp.Width, bmp.Height - 4 * TETROMINO_SIZE);
 
+            RectangleF sourceRect = new RectangleF(0, 4 * TETROMINO_SIZE, bmp.Width, bmp.Height - 4 * TETROMINO_SIZE);
             // Destination rectangle (where and how big the source should be drawn)
             RectangleF destRect = new RectangleF(0, 0, bmp.Width * uiScale, (bmp.Height - 4 * TETROMINO_SIZE) * uiScale);
 
@@ -259,6 +278,7 @@ namespace sandtris
                     {
                         Color = Color.Transparent,
                         ID = 0,
+                        Type = CellType.Sand,
                     };
                 }
             }
@@ -366,7 +386,7 @@ namespace sandtris
                 }
             }
             nextTetrominoShapeIndex = r.Next(tetrominoShapes.Count);
-            nextTetrominoColorIndex = (byte)r.Next(1, palette.Count);
+            nextTetrominoColorIndex = (byte)r.Next(1, tetrominoPalette.Count);
             nextTetrominoPatternIndex = (byte)r.Next(patterns.Count);
             DrawCurrentTetromino();
             DrawPreviewTetromino(0, 0, nextTetrominoBitmap);
@@ -417,9 +437,9 @@ namespace sandtris
                     Color patternColor = patterns[nextTetrominoPatternIndex].GetPixel((int)uvX, (int)uvY);
 
                     Color tintedColor = Color.FromArgb(
-                        patternColor.R * palette[nextTetrominoColorIndex].R / 255,
-                        patternColor.G * palette[nextTetrominoColorIndex].G / 255,
-                        patternColor.B * palette[nextTetrominoColorIndex].B / 255
+                        patternColor.R * tetrominoPalette[nextTetrominoColorIndex].R / 255,
+                        patternColor.G * tetrominoPalette[nextTetrominoColorIndex].G / 255,
+                        patternColor.B * tetrominoPalette[nextTetrominoColorIndex].B / 255
                     );
 
                     SetPreviewPixel(baseX + x1, baseY + y1, tintedColor, previewBitmap);
@@ -461,9 +481,9 @@ namespace sandtris
 
                         // Tint the grayscale pattern using the tetromino's color
                         Color tintedColor = Color.FromArgb(
-                            patternColor.R * palette[currentTetrominoColorIndex].R / 255,
-                            patternColor.G * palette[currentTetrominoColorIndex].G / 255,
-                            patternColor.B * palette[currentTetrominoColorIndex].B / 255
+                            patternColor.R * tetrominoPalette[currentTetrominoColorIndex].R / 255,
+                            patternColor.G * tetrominoPalette[currentTetrominoColorIndex].G / 255,
+                            patternColor.B * tetrominoPalette[currentTetrominoColorIndex].B / 255
                         );
 
                         SetCell(baseX + x1, baseY + y1, currentTetrominoColorIndex, tintedColor, currentTetrominoId);
@@ -508,7 +528,7 @@ namespace sandtris
                 for (int x = 0; x < map.GetLength(0); x++)
                 {
                     #region Movement
-                    if (map[x, y].ID > 0) //if i exist
+                    if (map[x, y].ID > 0 && map[x, y].Type != CellType.Static) //if i exist
                     {
                         if (map[x, y + 1].ID == 0) //if below is empty - fall
                         {
