@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Text;
 using System.Reflection;
+using System.Security.Cryptography.Xml;
 
 namespace sandtris
 {
@@ -10,7 +11,7 @@ namespace sandtris
     {
         const int TETROMINO_SIZE = 8;
         static int uiScale = 2;
-        enum CellType
+        public enum CellType
         {
             Sand, Static
         }
@@ -24,6 +25,7 @@ namespace sandtris
         static uint currentTetrominoId;
         static byte currentTetrominoRotIndex;
         static uint lastTetrominoCollisionId;
+        static bool isBomb = false;
         static Random r = new();
         List<bool[,]> tetrominoShapes = new()
         {
@@ -48,6 +50,7 @@ namespace sandtris
             //Color.Purple,
             Color.Wheat,
             //Color.DarkGray,
+            Color.Black,
         };
         Color staticColor = Color.Cyan;
 
@@ -64,12 +67,14 @@ namespace sandtris
 
         byte currentTetrominoColorIndex;
         byte currentTetrominoPatternIndex;
+        int currentTetrominoShapeIndex;
 
         byte nextTetrominoColorIndex;
         byte nextTetrominoPatternIndex;
         int nextTetrominoShapeIndex;
 
         int score = 0;
+        uint bombRewardCount = 0; //one bomb every 25.000 points, increment this for every 25.000 points
 
         bool gameOver = false;
         bool paused = false;
@@ -100,7 +105,7 @@ namespace sandtris
 
             gameOverPictureBox = new()
             {
-                Anchor = AnchorStyles.Left|AnchorStyles.Top|AnchorStyles.Right|AnchorStyles.Bottom,
+                Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Bottom,
                 Width = Width,
                 Height = Height,
                 BackColor = Color.Transparent,
@@ -138,7 +143,7 @@ namespace sandtris
             Debug.WriteLine(panel1.Location.ToString());
 
         }
-        public void SetCell(int x, int y, byte id, Color color, uint tetrominoId)
+        public void SetCell(int x, int y, byte id, Color color, uint tetrominoId, CellType type = CellType.Sand)
         {
             if (x < 0 || y < 0 || x >= map.GetLength(0) || y >= map.GetLength(1))
             {
@@ -147,6 +152,7 @@ namespace sandtris
             map[x, y].ID = id;
             map[x, y].Color = color;
             map[x, y].TetrominoID = tetrominoId;
+            map[x, y].Type = type;
             bmp.SetPixel(x, y, color);
         }
         public void UpdateUIScale(int scaleValue)
@@ -240,7 +246,7 @@ namespace sandtris
             score = 0;
             lastTetrominoCollisionId = 0;
             nextTetrominoShapeIndex = r.Next(tetrominoShapes.Count);
-            nextTetrominoColorIndex = (byte)r.Next(1, tetrominoPalette.Count);
+            nextTetrominoColorIndex = (byte)r.Next(1, tetrominoPalette.Count - 1);
             nextTetrominoPatternIndex = (byte)r.Next(patterns.Count);
             SpawnTetromino();
         }
@@ -252,6 +258,7 @@ namespace sandtris
                 return;
             }
             map[x, y] = cell;
+            bmp.SetPixel(x, y, cell.Color);
         }
 
         private void Panel1_Paint(object? sender, PaintEventArgs e)
@@ -337,10 +344,16 @@ namespace sandtris
                 {
                     ResetGame();
                 }
+#if DEBUG
                 if (e.KeyCode == Keys.F)
                 {
                     CheckGameOver(true);
                 }
+                if (e.KeyCode == Keys.B)
+                {
+                    isBomb = true;
+                }
+#endif
                 if (e.KeyCode >= Keys.D1 && e.KeyCode <= Keys.D9) // For top row number keys
                 {
                     // Subtracting with Keys.D1 gives 0 for '1', 1 for '2'... so add 1.
@@ -365,13 +378,13 @@ namespace sandtris
             Debug.WriteLine("Spawning tetromino");
 
             // Use the next tetromino values
-            int index = nextTetrominoShapeIndex;
-            bool[,] shape = tetrominoShapes[index];
-            currentTetrominoRotIndex = tetrominoRotationIndices[index];
+            currentTetrominoShapeIndex = nextTetrominoShapeIndex;
+            bool[,] shape = tetrominoShapes[currentTetrominoShapeIndex];
+            currentTetrominoRotIndex = tetrominoRotationIndices[currentTetrominoShapeIndex];
             currentTetrominoId++;
             currentTetrominoCorners.Clear();
             int xOffset = (map.GetLength(0) / TETROMINO_SIZE / 2) - 1;
-            currentTetrominoColorIndex = nextTetrominoColorIndex;
+            currentTetrominoColorIndex = isBomb ? (byte)(tetrominoPalette.Count - 1) : nextTetrominoColorIndex;
             currentTetrominoPatternIndex = nextTetrominoPatternIndex;
             ClearCurrentTetromino();
             for (int y = 0; y < shape.GetLength(1); y++)
@@ -386,7 +399,7 @@ namespace sandtris
                 }
             }
             nextTetrominoShapeIndex = r.Next(tetrominoShapes.Count);
-            nextTetrominoColorIndex = (byte)r.Next(1, tetrominoPalette.Count);
+            nextTetrominoColorIndex = (byte)r.Next(1, tetrominoPalette.Count - 1);
             nextTetrominoPatternIndex = (byte)r.Next(patterns.Count);
             DrawCurrentTetromino();
             DrawPreviewTetromino(0, 0, nextTetrominoBitmap);
@@ -516,11 +529,14 @@ namespace sandtris
             //bottom (unused)
             //e.Graphics.FillRectangle(Brushes.Gray, panel1.Left, panel1.Bottom, panel1.Width, 4 * uiScale);
         }
+        bool shouldTetrominoSpawn = false;
         private void Update(object sender, EventArgs e)
         {
+            shouldTetrominoSpawn = false;
             if (currentTetrominoCorners.Count == 0)
             {
-                SpawnTetromino();
+                Debug.WriteLine("Does this shit ever run?");
+                shouldTetrominoSpawn = true;
                 lastTetrominoCollisionId = Math.Max(lastTetrominoCollisionId, map[currentTetrominoCorners[0].X, currentTetrominoCorners[0].Y].TetrominoID);
             }
             for (int y = map.GetLength(1) - 2; y >= 0; y--)
@@ -528,7 +544,7 @@ namespace sandtris
                 for (int x = 0; x < map.GetLength(0); x++)
                 {
                     #region Movement
-                    if (map[x, y].ID > 0 && map[x, y].Type != CellType.Static) //if i exist
+                    if (map[x, y].ID > 0 && map[x, y].Type != CellType.Static) //if i exist and i am not static
                     {
                         if (map[x, y + 1].ID == 0) //if below is empty - fall
                         {
@@ -538,7 +554,11 @@ namespace sandtris
                             {
                                 if (map[x, y].TetrominoID > lastTetrominoCollisionId)
                                 {
-                                    SpawnTetromino();
+                                    if (isBomb)
+                                    {
+                                        BlowUp();
+                                    }
+                                    shouldTetrominoSpawn = true;
                                     lastTetrominoCollisionId = Math.Max(lastTetrominoCollisionId, map[x, y].TetrominoID);
                                 }
                             }
@@ -547,8 +567,11 @@ namespace sandtris
                         {
                             if (map[x, y].TetrominoID > lastTetrominoCollisionId)
                             {
-
-                                SpawnTetromino();
+                                if (isBomb)
+                                {
+                                    BlowUp();
+                                }
+                                shouldTetrominoSpawn = true;
                                 lastTetrominoCollisionId = Math.Max(lastTetrominoCollisionId, map[x, y].TetrominoID);
 
                             }
@@ -594,26 +617,26 @@ namespace sandtris
             }
             #region BFS Line Connection Check
             bool[,] visited = new bool[map.GetLength(0), map.GetLength(1)];
-            Queue<(int, int)> queue = new();
+            Queue<Point> queue = new();
 
             for (int y = 0; y < map.GetLength(1); y++)
             {
                 if (map[0, y].ID > 0 && map[0, y].TetrominoID != currentTetrominoId) // Starting from leftmost edge and ensure it's not the current tetromino
                 {
-                    List<(int, int)> currentCells = new();
+                    List<Point> currentCells = new();
                     bool reachedRightEdge = false;
                     int startingID = map[0, y].ID;  // ID of the cell on the leftmost edge
 
-                    queue.Enqueue((0, y));
+                    queue.Enqueue(new(0, y));
                     while (queue.Count > 0)
                     {
-                        var (cx, cy) = queue.Dequeue();
-                        if (visited[cx, cy] || map[cx, cy].ID != startingID || map[cx, cy].TetrominoID == currentTetrominoId) continue;  // Ensure only cells with the same ID are processed and it's not the current tetromino
+                        Point c = queue.Dequeue();
+                        if (visited[c.X, c.Y] || map[c.X, c.Y].ID != startingID || map[c.X, c.Y].TetrominoID == currentTetrominoId) continue;  // Ensure only cells with the same ID are processed and it's not the current tetromino
 
-                        visited[cx, cy] = true;
-                        currentCells.Add((cx, cy));
+                        visited[c.X, c.Y] = true;
+                        currentCells.Add(new(c.X, c.Y));
 
-                        if (cx == map.GetLength(0) - 1)
+                        if (c.X == map.GetLength(0) - 1)
                         {
                             reachedRightEdge = true;
                         }
@@ -623,12 +646,12 @@ namespace sandtris
                         {
                             for (int dy = -1; dy <= 1; dy++)
                             {
-                                int nx = cx + dx;
-                                int ny = cy + dy;
+                                int nx = c.X + dx;
+                                int ny = c.Y + dy;
 
                                 if (nx >= 0 && nx < map.GetLength(0) && ny >= 0 && ny < map.GetLength(1) && !visited[nx, ny] && map[nx, ny].ID == startingID && map[nx, ny].TetrominoID != currentTetrominoId)
                                 {
-                                    queue.Enqueue((nx, ny));
+                                    queue.Enqueue(new(nx, ny));
                                 }
                             }
                         }
@@ -637,32 +660,14 @@ namespace sandtris
                     if (reachedRightEdge)
                     {
                         score += currentCells.Count;
-                        logicTimer.Stop();
-                        inputTimer.Stop();
-                        foreach (var (cellX, cellY) in currentCells)
+                        DoDisappearAnimation(currentCells);
+                        if (score >= 25000 * (bombRewardCount + 1))
                         {
-                            SetCell(cellX, cellY, 0, Color.White, currentTetrominoId);
+                            isBomb = true;
+                            currentTetrominoColorIndex = (byte)(tetrominoPalette.Count - 1);
+                            DrawCurrentTetromino(0, 1);
+                            bombRewardCount++;
                         }
-                        Refresh();
-                        currentCells.Shuffle();
-                        int counter = 0;
-                        while (true)
-                        {
-                            foreach (var (cellX, cellY) in currentCells)
-                            {
-                                SetCell(cellX, cellY, 0, Color.Transparent, currentTetrominoId);
-                                if (counter >= 40)
-                                {
-                                    counter = 0;
-                                    Refresh();
-                                    Thread.Sleep(2);
-                                }
-                                counter++;
-                            }
-                            break;
-                        }
-                        logicTimer.Start();
-                        inputTimer.Start();
                     }
                 }
             }
@@ -674,6 +679,73 @@ namespace sandtris
                 currentTetrominoCorners[i] = new Point(currentTetrominoCorners[i].X, currentTetrominoCorners[i].Y + 1);
             }
             #endregion
+            if (shouldTetrominoSpawn)
+            {
+                SpawnTetromino();
+            }
+        }
+
+        private void DoDisappearAnimation(List<Point> currentCells, int updateAtEvery = 40)
+        {
+            logicTimer.Stop();
+            inputTimer.Stop();
+            foreach (Point cell in currentCells)
+            {
+                SetCell(cell.X, cell.Y, 0, Color.White, currentTetrominoId);
+            }
+            Refresh();
+            currentCells.Shuffle();
+            int counter = 0;
+            while (true)
+            {
+                foreach (Point cell in currentCells)
+                {
+                    SetCell(cell.X, cell.Y, 0, Color.Transparent, currentTetrominoId);
+                    if (counter >= updateAtEvery)
+                    {
+                        counter = 0;
+                        Refresh();
+                        Thread.Sleep(2);
+                    }
+                    counter++;
+                }
+                break;
+            }
+            logicTimer.Start();
+            inputTimer.Start();
+        }
+
+        private void BlowUp()
+        {
+            isBomb = false;
+            //bfs search
+            Point centroid = currentTetrominoCorners[tetrominoRotationIndices[currentTetrominoShapeIndex]];
+            Queue<Point> queue = new();
+            HashSet<Point> visited = new();
+            queue.Enqueue(centroid);
+            visited.Add(centroid);
+            while (queue.Count > 0)
+            {
+                Point current = queue.Dequeue();
+
+                // Calculate distance to centroid
+                double distance = Math.Sqrt((current.X - centroid.X) * (current.X - centroid.X) + (current.Y - centroid.Y) * (current.Y - centroid.Y));
+
+                if (distance > 4 * TETROMINO_SIZE) continue;
+
+                // Check and enqueue neighboring cells
+                foreach (Point offset in new Point[] { new Point(1, 0), new Point(-1, 0), new Point(0, 1), new Point(0, -1) })
+                {
+                    Point neighbor = new Point(current.X + offset.X, current.Y + offset.Y);
+                    if (IsWithinBounds(neighbor.X, neighbor.Y) && !visited.Contains(neighbor))
+                    {
+                        queue.Enqueue(neighbor);
+                        visited.Add(neighbor);
+                    }
+                }
+            }
+            score += visited.Where(pt => map[pt.X, pt.Y].ID != 0).Count();
+            DoDisappearAnimation(visited.ToList(), 160);
         }
 
         private void CheckGameOver(bool forceFail = false)
@@ -964,11 +1036,11 @@ namespace sandtris
                 DrawCell(corner.X, corner.Y, true);
             }
         }
-        void DrawCurrentTetromino()
+        void DrawCurrentTetromino(int offsetX = 0, int offsetY = 0)
         {
             foreach (Point corner in currentTetrominoCorners)
             {
-                DrawCell(corner.X, corner.Y);
+                DrawCell(corner.X + offsetX, corner.Y + offsetY);
             }
         }
 
