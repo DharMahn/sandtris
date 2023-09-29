@@ -26,6 +26,7 @@ namespace sandtris
         static byte currentTetrominoRotIndex;
         static uint lastTetrominoCollisionId;
         static bool isBomb = false;
+
         static Random r = new();
         List<bool[,]> tetrominoShapes = new()
         {
@@ -228,19 +229,22 @@ namespace sandtris
             inputTimer.Start();
             logicTimer.Start();
             ClearMap();
-            for (int y = 0; y < TETROMINO_SIZE; y++)
-            {
-                for (int x = 0; x < TETROMINO_SIZE; x++)
-                {
-                    SetCell(x, y + (TETROMINO_SIZE * 23), new Cell
-                    {
-                        Color = staticColor,
-                        ID = 99,
-                        Type = CellType.Static
-                    });
-                    bmp.SetPixel(x, y + (TETROMINO_SIZE * 23), staticColor);
-                }
-            }
+#if DEBUG
+            //walls
+            //for (int y = 0; y < TETROMINO_SIZE; y++)
+            //{
+            //    for (int x = 0; x < TETROMINO_SIZE; x++)
+            //    {
+            //        SetCell(x, y + (TETROMINO_SIZE * 23), new Cell
+            //        {
+            //            Color = staticColor,
+            //            ID = 99,
+            //            Type = CellType.Static
+            //        });
+            //        bmp.SetPixel(x, y + (TETROMINO_SIZE * 23), staticColor);
+            //    }
+            //}
+#endif
             nextTetrominoBitmap = new Bitmap(TETROMINO_SIZE * 4, TETROMINO_SIZE * 4);
             currentTetrominoId = 0;
             score = 0;
@@ -661,7 +665,7 @@ namespace sandtris
                     {
                         score += currentCells.Count;
                         DoDisappearAnimation(currentCells);
-                        if (score >= 25000 * (bombRewardCount + 1))
+                        if (score >= 1000 * (bombRewardCount + 1))
                         {
                             isBomb = true;
                             currentTetrominoColorIndex = (byte)(tetrominoPalette.Count - 1);
@@ -720,6 +724,8 @@ namespace sandtris
             isBomb = false;
             //bfs search
             Point centroid = currentTetrominoCorners[tetrominoRotationIndices[currentTetrominoShapeIndex]];
+            centroid.X += TETROMINO_SIZE / 2;
+            centroid.Y += TETROMINO_SIZE / 2;
             Queue<Point> queue = new();
             HashSet<Point> visited = new();
             queue.Enqueue(centroid);
@@ -745,7 +751,7 @@ namespace sandtris
                 }
             }
             score += visited.Where(pt => map[pt.X, pt.Y].ID != 0).Count();
-            DoDisappearAnimation(visited.ToList(), 160);
+            DoDisappearAnimation(visited.ToList(), 120);
         }
 
         private void CheckGameOver(bool forceFail = false)
