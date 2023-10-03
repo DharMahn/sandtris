@@ -1,10 +1,13 @@
+using NAudio.Mixer;
+using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Text;
 using System.Reflection;
-using System.Security.Cryptography.Xml;
 
 namespace sandtris
 {
@@ -100,10 +103,61 @@ namespace sandtris
         static SolidBrush wallLight = new(Color.FromArgb(153, 153, 153));
         Color bgColor = Color.FromArgb(255, 20, 20, 20);
 
+        //sound
+        private MixingSampleProvider mixer;
+        private IWavePlayer outputDevice;
+        private static readonly double[] fallSound = { 100, 0.10, 75, 0.075, 50, 0.05 };
+        private static readonly double[] clearLineSound = { 110,0.1,220,0.1,360,0.1,480,0.1 };
+        private void InitAudio()
+        {
+            mixer = new MixingSampleProvider(WaveFormat.CreateIeeeFloatWaveFormat(44100, 2));
+            mixer.ReadFully = true;
+            outputDevice = new WaveOutEvent();
+            outputDevice.Init(mixer);
+            outputDevice.Play();
+        }
+        private ISampleProvider CreateContinuousTone(double[] tones)
+        {
+            if (tones == null || tones.Length % 2 != 0) throw new ArgumentException("Invalid tones array");
+
+            List<ISampleProvider> toneProviders = new List<ISampleProvider>();
+
+            for (int i = 0; i < tones.Length; i += 2)
+            {
+                double frequency = tones[i];
+                double duration = tones[i + 1];
+
+                // Adjust duration to make sure it ends on a zero-crossing
+                double singleCycleDuration = 1.0 / frequency;
+                double adjustedDuration = Math.Round(duration / singleCycleDuration) * singleCycleDuration;
+
+                var generator = new SignalGenerator(44100, 2)
+                {
+                    Gain = 0.5,
+                    Frequency = frequency,
+                    Type = SignalGeneratorType.Triangle
+                };
+
+                var offsetSampleProvider = new OffsetSampleProvider(generator);
+                offsetSampleProvider.Take = TimeSpan.FromSeconds(adjustedDuration);
+
+                toneProviders.Add(offsetSampleProvider);
+            }
+
+            // Concatenate all providers for continuous playback
+            return new ConcatenatingSampleProvider(toneProviders);
+        }
+        public void PlayTones(double[] tones, float gain = 1f)
+        {
+            if (gain < 0 || gain > 1) throw new ArgumentException("Invalid gain value");
+
+            var continuousTone = CreateContinuousTone(tones);
+            var volumeProvider = new VolumeSampleProvider(continuousTone) { Volume = gain };
+            mixer.AddMixerInput(volumeProvider);
+        }
         public Form1()
         {
             InitializeComponent();
-
             pfc = new PrivateFontCollection();
             pfc.AddFontFile("CompassGold.ttf");
             patterns = new List<SimpleBitmap>();
@@ -135,7 +189,7 @@ namespace sandtris
             DoubleBuffered = true;
             FormBorderStyle = FormBorderStyle.FixedToolWindow;
             UpdateUIScale(-1);
-
+            InitAudio();
         }
         private void RescaleUI()
         {
@@ -406,7 +460,7 @@ namespace sandtris
             currentTetrominoId++;
             currentTetrominoCorners.Clear();
             int xOffset = (map.GetLength(0) / TETROMINO_SIZE / 2) - 1;
-            currentTetrominoColorIndex = nextTetrominoColorIndex;
+            currentTetrominoColorIndex = 2;
             currentTetrominoPatternIndex = nextTetrominoPatternIndex;
             ClearCurrentTetromino();
             for (int y = 0; y < shape.GetLength(1); y++)
@@ -582,6 +636,10 @@ namespace sandtris
                                     {
                                         BlowUp();
                                     }
+                                    else
+                                    {
+                                        PlayTones(fallSound);
+                                    }
                                     shouldTetrominoSpawn = true;
                                     lastTetrominoCollisionId = Math.Max(lastTetrominoCollisionId, map[x, y].TetrominoID);
                                 }
@@ -594,6 +652,10 @@ namespace sandtris
                                 if (isBomb)
                                 {
                                     BlowUp();
+                                }
+                                else
+                                {
+                                    PlayTones(fallSound);
                                 }
                                 shouldTetrominoSpawn = true;
                                 lastTetrominoCollisionId = Math.Max(lastTetrominoCollisionId, map[x, y].TetrominoID);
@@ -683,6 +745,7 @@ namespace sandtris
 
                     if (reachedRightEdge)
                     {
+                        //PlayTones(clearLineSound);
                         score += currentCells.Count;
                         lineClearCount++;
                         DoDisappearAnimation(currentCells);
@@ -748,6 +811,8 @@ namespace sandtris
             Refresh();
             currentCells.Shuffle();
             int counter = 0;
+            double currentTone = 110;
+            double incrementTone = 5;
             while (true)
             {
                 foreach (Point cell in currentCells)
@@ -755,6 +820,8 @@ namespace sandtris
                     SetCell(cell.X, cell.Y, 0, Color.Transparent, currentTetrominoId);
                     if (counter >= updateAtEvery)
                     {
+                        PlayTones(new[] { currentTone, 0.1 });
+                        currentTone += incrementTone;
                         counter = 0;
                         Refresh();
                         Thread.Sleep(2);
