@@ -8,17 +8,13 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Text;
 using System.Reflection;
-
+using static sandtris.CellType;
 namespace sandtris
 {
     public partial class Form1 : Form
     {
         const int TETROMINO_SIZE = 8;
         static int uiScale = 2;
-        public enum CellType
-        {
-            Sand, Static
-        }
         struct Cell
         {
             public Color Color;
@@ -88,6 +84,7 @@ namespace sandtris
         int score = 0;
         uint bombRewardCount = 0; //one bomb every 25.000 points, increment this for every 25.000 points
         uint lineClearCount = 0;
+        bool doWalls = false;
 
         bool gameOver = false;
         bool paused = false;
@@ -102,12 +99,12 @@ namespace sandtris
         static SolidBrush wallNormal = new(Color.FromArgb(102, 102, 102));
         static SolidBrush wallLight = new(Color.FromArgb(153, 153, 153));
         Color bgColor = Color.FromArgb(255, 20, 20, 20);
-
+        Configuration config;
         //sound
         private MixingSampleProvider mixer;
         private IWavePlayer outputDevice;
         private static readonly double[] fallSound = { 100, 0.10, 75, 0.075, 50, 0.05 };
-        private static readonly double[] clearLineSound = { 110,0.1,220,0.1,360,0.1,480,0.1 };
+        private static readonly double[] clearLineSound = { 110, 0.1, 220, 0.1, 360, 0.1, 480, 0.1 };
         private void InitAudio()
         {
             mixer = new MixingSampleProvider(WaveFormat.CreateIeeeFloatWaveFormat(44100, 2));
@@ -158,6 +155,7 @@ namespace sandtris
         public Form1()
         {
             InitializeComponent();
+            config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
             pfc = new PrivateFontCollection();
             pfc.AddFontFile("CompassGold.ttf");
             patterns = new List<SimpleBitmap>();
@@ -190,6 +188,17 @@ namespace sandtris
             FormBorderStyle = FormBorderStyle.FixedToolWindow;
             UpdateUIScale(-1);
             InitAudio();
+            if (config.AppSettings.Settings["doWalls"] == null)
+            {
+                doWalls = false;
+                config.AppSettings.Settings.Add("doWalls","0");
+            }
+            else
+            {
+                int thing = 0;
+                int.TryParse(config.AppSettings.Settings["doWalls"].Value, out thing);
+                doWalls = thing == 1 ? true : false;
+            }
         }
         private void RescaleUI()
         {
@@ -221,7 +230,7 @@ namespace sandtris
         }
         public void UpdateUIScale(int scaleValue)
         {
-            Configuration config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
+
 
             // If -1 is passed in, load the value from the config or set defaults
             if (scaleValue == -1)
@@ -302,7 +311,7 @@ namespace sandtris
             //        {
             //            Color = staticColor,
             //            ID = 99,
-            //            Type = CellType.Static
+            //            Type = Static
             //        });
             //        bmp.SetPixel(x, y + (TETROMINO_SIZE * 23), staticColor);
             //    }
@@ -352,7 +361,7 @@ namespace sandtris
                     {
                         Color = Color.Transparent,
                         ID = 0,
-                        Type = CellType.Sand,
+                        Type = Sand,
                     };
                 }
             }
@@ -460,7 +469,12 @@ namespace sandtris
             currentTetrominoId++;
             currentTetrominoCorners.Clear();
             int xOffset = (map.GetLength(0) / TETROMINO_SIZE / 2) - 1;
+#if DEBUG
             currentTetrominoColorIndex = 2;
+#else
+            currentTetrominoColorIndex = nextTetrominoColorIndex;
+
+#endif
             currentTetrominoPatternIndex = nextTetrominoPatternIndex;
             ClearCurrentTetromino();
             for (int y = 0; y < shape.GetLength(1); y++)
@@ -479,7 +493,7 @@ namespace sandtris
             nextTetrominoPatternIndex = (byte)r.Next(patterns.Count);
             DrawCurrentTetromino();
             DrawPreviewTetromino();
-
+            string asd = null;
             //Debug.WriteLine("\n\n\n\n\n\n\nnext:\n" + shapeNames[nextTetrominoShapeIndex] + "\n" + palette[nextTetrominoColorIndex].ToString() + "\npattern: " + nextTetrominoPatternIndex);
         }
         void DrawPreviewTetromino()
@@ -622,7 +636,7 @@ namespace sandtris
                 for (int x = 0; x < map.GetLength(0); x++)
                 {
                     #region Movement
-                    if (map[x, y].ID > 0 && map[x, y].Type != CellType.Static) //if i exist and i am not static
+                    if (map[x, y].ID > 0 && map[x, y].Type != Static) //if i exist and i am not static (so falling)
                     {
                         if (map[x, y + 1].ID == 0) //if below is empty - fall
                         {
@@ -759,7 +773,7 @@ namespace sandtris
                             bombCount++;
 
                         }
-                        if (lineClearCount % 10 == 0)
+                        if (doWalls && lineClearCount % 10 == 0)
                         {
                             SpawnWall();
                         }
@@ -793,7 +807,7 @@ namespace sandtris
                     {
                         Color = staticColor,
                         ID = 99,
-                        Type = CellType.Static
+                        Type = Static
                     });
                     bmp.SetPixel(x + x1, y + y1, staticColor);
                 }
@@ -812,7 +826,7 @@ namespace sandtris
             currentCells.Shuffle();
             int counter = 0;
             double currentTone = 110;
-            double incrementTone = 5;
+            double incrementTone = 2.5;
             while (true)
             {
                 foreach (Point cell in currentCells)
@@ -820,9 +834,10 @@ namespace sandtris
                     SetCell(cell.X, cell.Y, 0, Color.Transparent, currentTetrominoId);
                     if (counter >= updateAtEvery)
                     {
-                        PlayTones(new[] { currentTone, 0.1 });
+                        PlayTones(new[] { currentTone, 0.05 });
                         currentTone += incrementTone;
                         counter = 0;
+                        updateAtEvery += 2;
                         Refresh();
                         Thread.Sleep(2);
                     }
@@ -836,18 +851,12 @@ namespace sandtris
 
         private void BlowUp()
         {
-            //bfs search
-            //// The LINQ query
-            //var result = currentTetrominoCorners
-            //    .GroupBy(p => p.Y) // Group points by their Y value
-            //    .OrderByDescending(g => g.Key) // Order groups by Y value in descending order
-            //    .FirstOrDefault() // Get the group with the highest Y value
-            //    ?.Average(p => p.X) // Average the X position of the points in that group
-            //    ?? 0; // If no points exist, default to 0
-            //Point centroid = new Point((int)result, currentTetrominoCorners.Max(p => p.Y));
-            //centroid.X += TETROMINO_SIZE / 2;
-            //centroid.Y += TETROMINO_SIZE / 2;
-            Point centroid = currentTetrominoCorners[tetrominoRotationIndices[currentTetrominoShapeIndex]];
+            //Point centroid = currentTetrominoCorners[tetrominoRotationIndices[currentTetrominoShapeIndex]];
+            int avgX = (int)currentTetrominoCorners.Average(p => p.X);
+            int avgY = (int)currentTetrominoCorners.Average(p => p.Y);
+            Point centroid = Point.Empty;
+            centroid.X += avgX;
+            centroid.Y += avgY;
             centroid.X += TETROMINO_SIZE / 2;
             centroid.Y += TETROMINO_SIZE / 2;
             Queue<Point> queue = new();
@@ -999,7 +1008,16 @@ namespace sandtris
 
             // Now that the tetromino has landed, draw it at its final position
             DrawCurrentTetromino();
-
+            lastTetrominoCollisionId = currentTetrominoId;
+            if (isBomb)
+            {
+                BlowUp();
+            }
+            else
+            {
+                PlayTones(fallSound);
+            }
+            SpawnTetromino();
             // You can add additional steps here if needed, such as checking for completed lines
         }
 
