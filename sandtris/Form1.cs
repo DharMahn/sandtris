@@ -1,13 +1,16 @@
 using NAudio.Mixer;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Text;
+using System.Globalization;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using static sandtris.CellType;
 namespace sandtris
 {
@@ -157,11 +160,19 @@ namespace sandtris
             InitializeComponent();
             config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
             pfc = new PrivateFontCollection();
-            pfc.AddFontFile("CompassGold.ttf");
+            byte[] fontData = MyResources.CompassGold;
+            nint fontPtr = Marshal.AllocCoTaskMem(fontData.Length);
+            Marshal.Copy(fontData, 0, fontPtr, fontData.Length);
+            pfc.AddMemoryFont(fontPtr, fontData.Length);
+            Marshal.FreeCoTaskMem(fontPtr);
             patterns = new List<SimpleBitmap>();
-            foreach (var item in Directory.GetFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "*.png"))
+            foreach (var item in MyResources.ResourceManager
+                .GetResourceSet(CultureInfo.CurrentCulture, true, true)!
+                .Cast<DictionaryEntry>()
+                .Where(x => x.Value is Bitmap)
+                .Select(x => SimpleBitmap.FromBitmap((Bitmap)x.Value!)))
             {
-                patterns.Add(SimpleBitmap.FromBitmap((Bitmap)Image.FromFile(item)));
+                patterns.Add(item);
             }
 
             gameOverPictureBox = new()
@@ -191,7 +202,7 @@ namespace sandtris
             if (config.AppSettings.Settings["doWalls"] == null)
             {
                 doWalls = false;
-                config.AppSettings.Settings.Add("doWalls","0");
+                config.AppSettings.Settings.Add("doWalls", "0");
             }
             else
             {

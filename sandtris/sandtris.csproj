@@ -15,10 +15,6 @@
     <None Remove="pattern3.png" />
     <None Remove="pattern4.png" />
     <None Remove="Resources\CompassGold.ttf" />
-    <None Remove="Resources\HopeGold.ttf" />
-    <None Remove="Resources\RedeemGold.ttf" />
-    <None Remove="Resources\RulerGold.ttf" />
-    <None Remove="Resources\SinsGold.ttf" />
   </ItemGroup>
 
   <ItemGroup>
@@ -26,33 +22,36 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Resource Include="pattern1.png">
+    <Resource Include="Resources\pattern1.png">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Resource>
-    <Resource Include="pattern2.png">
+    <Resource Include="Resources\pattern2.png">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Resource>
-    <Resource Include="pattern3.png">
+    <Resource Include="Resources\pattern3.png">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Resource>
-    <Resource Include="pattern4.png">
+    <Resource Include="Resources\pattern4.png">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Resource>
     <Resource Include="Resources\CompassGold.ttf">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Resource>
-    <Resource Include="Resources\HopeGold.ttf">
-      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-    </Resource>
-    <Resource Include="Resources\RedeemGold.ttf">
-      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-    </Resource>
-    <Resource Include="Resources\RulerGold.ttf">
-      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-    </Resource>
-    <Resource Include="Resources\SinsGold.ttf">
-      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-    </Resource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="MyResources.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>MyResources.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Update="MyResources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>MyResources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
   </ItemGroup>
 
 </Project>
