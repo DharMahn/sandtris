@@ -1,12 +1,8 @@
-using NAudio.Mixer;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using System.Collections;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Configuration;
 using System.Diagnostics;
-using System.Drawing;
 using System.Drawing.Text;
 using System.Globalization;
 using System.Reflection;
@@ -504,7 +500,6 @@ namespace sandtris
             nextTetrominoPatternIndex = (byte)r.Next(patterns.Count);
             DrawCurrentTetromino();
             DrawPreviewTetromino();
-            string asd = null;
             //Debug.WriteLine("\n\n\n\n\n\n\nnext:\n" + shapeNames[nextTetrominoShapeIndex] + "\n" + palette[nextTetrominoColorIndex].ToString() + "\npattern: " + nextTetrominoPatternIndex);
         }
         void DrawPreviewTetromino()
@@ -777,7 +772,7 @@ namespace sandtris
 #if DEBUG
                         if (score >= 1000 * (bombRewardCount + 1))
 #else
-                        if (score >= 2500 * (bombRewardCount + 1))
+                        while (score >= 10000 * (bombRewardCount + 1))
 #endif
                         {
                             bombRewardCount++;
