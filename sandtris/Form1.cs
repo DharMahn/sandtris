@@ -355,6 +355,12 @@ namespace sandtris
 
             // Draw the image
             e.Graphics.DrawImage(bmp.ToBitmap(), destRect, sourceRect, GraphicsUnit.Pixel);
+            var dropLocation = GetHardDropLocation();
+            foreach (var item in dropLocation)
+            {
+                Debug.WriteLine(panel1.Top);
+                e.Graphics.DrawRectangle(Pens.White, item.X * uiScale, (((item.Y - (4 * TETROMINO_SIZE)) - 1) * uiScale), TETROMINO_SIZE * uiScale, TETROMINO_SIZE * uiScale); ;
+            }
         }
 
         private void ClearMap()
@@ -611,6 +617,7 @@ namespace sandtris
             e.Graphics.FillRectangle(wallNormal, panel1.Right, 0, 4 * uiScale, Height);
             e.Graphics.FillRectangle(wallLight, panel1.Right, 0, uiScale, Height);
             e.Graphics.FillRectangle(wallLight, panel1.Right, 0, 4 * uiScale, uiScale);
+
             string stringToDraw = "Score:\t" + score + "\n\n\n";
             SizeF stringSize = e.Graphics.MeasureString(stringToDraw, myFont);
             e.Graphics.DrawString(stringToDraw, myFont, Brushes.White, panel1.Right + (5 * uiScale), 0);
@@ -624,6 +631,7 @@ namespace sandtris
             stringToDraw = $"Bombs:\t{bombCount}\nActive:\t{appliedBombCount}";
             stringSize = e.Graphics.MeasureString(stringToDraw, myFont);
             e.Graphics.DrawString(stringToDraw, myFont, Brushes.White, panel1.Right + (5 * uiScale), pictureHeight + (preview.Height * uiScale / 2) + (5 * uiScale));
+
             //bottom (unused)
             //e.Graphics.FillRectangle(Brushes.Gray, panel1.Left, panel1.Bottom, panel1.Width, 4 * uiScale);
         }
@@ -994,6 +1002,21 @@ namespace sandtris
             DrawCurrentTetromino();
 
             // Update current tetromino corners to the new rotated positions
+        }
+        List<Point> GetHardDropLocation()
+        {
+            List<Point> newCorners;
+            int i = 1;
+            while (true)
+            {
+                newCorners = CalculateNewCorners(0, i);
+                if (WillCollide(newCorners))
+                {
+                    break;
+                }
+                i++;
+            }
+            return newCorners;
         }
         void HardDropCurrentTetromino()
         {
